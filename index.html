@@ -1,0 +1,1750 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<title>TalkFit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#0C0C0E"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0C0C0E;
+  --surface: #1C1C1E;
+  --surface2: #2C2C2E;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --accent: #4F7FFF;
+  --accent-glow: rgba(79,127,255,0.38);
+  --green: #30D158;
+  --red: #FF453A;
+  --yellow: #FFD60A;
+  --fg: #FFFFFF;
+  --fg2: #8E8E93;
+  --fg3: #48484A;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif;
+  --r: 14px;
+  --r-sm: 10px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg); color: var(--fg); font-family: var(--sans);
+  height: 100%; overflow: hidden; -webkit-font-smoothing: antialiased;
+}
+body { padding-top: env(safe-area-inset-top); }
+button { font-family: inherit; border: none; background: none; color: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; }
+
+/* ── App Shell ── */
+.app {
+  max-width: 430px; margin: 0 auto;
+  height: 100dvh; display: flex; flex-direction: column;
+}
+
+/* ── Header ── */
+.header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 20px 0; flex-shrink: 0;
+}
+.brand {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 17px; font-weight: 600; letter-spacing: -0.4px;
+}
+.header-right { display: flex; align-items: center; gap: 10px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--surface); display: flex; align-items: center;
+  justify-content: center; color: var(--fg2);
+}
+.icon-btn:active { opacity: 0.6; }
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--fg3);
+  transition: background 0.4s, box-shadow 0.4s;
+}
+.status-dot.live {
+  background: var(--accent); box-shadow: 0 0 8px var(--accent-glow);
+  animation: blink-dot 1.6s infinite;
+}
+@keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── Screens Wrap (slide container) ── */
+.screens-wrap {
+  flex: 1; position: relative; overflow: hidden;
+}
+.screen {
+  position: absolute; inset: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column;
+  pointer-events: none;
+}
+.screen::-webkit-scrollbar { display: none; }
+.screen.active { pointer-events: auto; }
+
+/* ── Bottom Nav ── */
+.bottom-nav {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--border);
+  background: rgba(12,12,14,0.96);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  padding: 8px 0 calc(6px + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+}
+.nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 6px 0; font-size: 10px; letter-spacing: 0.01em;
+  color: var(--fg3); font-weight: 500; transition: color 0.2s;
+}
+.nav-item.active { color: var(--accent); }
+.nav-icon { width: 24px; height: 24px; }
+
+/* ── Segmented Control ── */
+.seg-control {
+  display: flex; background: var(--surface); border-radius: var(--r-sm);
+  padding: 3px; gap: 2px; flex-shrink: 0;
+}
+.seg-btn {
+  flex: 1; padding: 7px 0; font-size: 13px; font-weight: 500;
+  border-radius: 8px; color: var(--fg2); transition: background 0.2s, color 0.2s;
+  text-align: center; letter-spacing: -0.2px;
+}
+.seg-btn.active { background: var(--surface2); color: var(--fg); }
+
+/* ── Weight Card ── */
+.weight-card { background: var(--surface); border-radius: var(--r); padding: 18px; }
+.weight-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.weight-add-btn {
+  font-size: 12px; font-weight: 600; color: var(--accent);
+  padding: 5px 12px; border-radius: 100px;
+  background: var(--accent-dim, rgba(79,127,255,0.15));
+  letter-spacing: -0.1px;
+}
+.weight-main { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
+.weight-big { font-family: var(--mono); font-size: 36px; font-weight: 600; letter-spacing: -1.5px; }
+.weight-unit { font-size: 16px; color: var(--fg2); }
+.weight-sub { font-size: 12px; color: var(--fg3); margin-bottom: 6px; }
+.weight-delta { font-size: 13px; margin-bottom: 8px; }
+.weight-spark { width: 100%; }
+.weight-empty { font-size: 13px; color: var(--fg3); padding: 8px 0; }
+
+/* ── Ring inner views ── */
+.ring-idle-view {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  transition: opacity 0.25s;
+}
+.ring-set-num {
+  font-family: var(--mono); font-size: 54px; font-weight: 600;
+  letter-spacing: -3px; line-height: 1; transition: opacity 0.3s;
+}
+.ring-set-label {
+  font-size: 11px; font-weight: 700; color: var(--fg3);
+  letter-spacing: 0.12em; text-transform: uppercase; margin-top: -2px;
+}
+.ring-last-ex {
+  font-size: 11px; color: var(--fg2); margin-top: 6px;
+  max-width: 140px; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ring-tap-hint {
+  font-size: 11px; color: var(--fg3); margin-top: 8px; letter-spacing: -0.1px;
+}
+.ring-live-view {
+  display: none; flex-direction: column; align-items: center; gap: 10px;
+  transition: opacity 0.25s;
+}
+
+/* ── Onboarding Overlay ── */
+.onboard-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center;
+  padding: calc(env(safe-area-inset-top) + 48px) 28px calc(env(safe-area-inset-bottom) + 32px);
+  opacity: 1; transition: opacity 0.4s;
+  overflow-y: auto;
+}
+.onboard-overlay.out { opacity: 0; pointer-events: none; }
+
+.onboard-logo {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+.onboard-sub {
+  font-size: 14px; color: var(--fg2); text-align: center;
+  margin-bottom: 40px; letter-spacing: -0.2px;
+}
+.onboard-steps { width: 100%; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+.onboard-step {
+  background: var(--surface); border-radius: var(--r);
+  padding: 18px 20px;
+}
+.onboard-step-tag {
+  font-size: 10px; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;
+}
+.onboard-step-title {
+  font-size: 15px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 10px;
+}
+.onboard-bubble {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surface2); border-radius: 100px;
+  padding: 8px 14px; margin-bottom: 6px;
+  font-size: 14px; font-weight: 500;
+}
+.onboard-bubble-icon { font-size: 16px; line-height: 1; }
+.onboard-arrow {
+  font-size: 12px; color: var(--fg3); margin: 4px 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.onboard-arrow::before { content: ''; display: block; width: 16px; height: 1px; background: var(--border2); }
+.onboard-result {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px;
+}
+.onboard-tag {
+  background: var(--accent-dim, rgba(79,127,255,0.15));
+  color: var(--accent); border-radius: 6px;
+  padding: 3px 10px; font-size: 12px; font-weight: 600;
+  font-family: var(--mono);
+}
+.onboard-desc {
+  font-size: 13px; color: var(--fg2); margin-top: 8px; line-height: 1.6;
+}
+.onboard-start-btn {
+  width: 100%; height: 54px; border-radius: var(--r);
+  background: var(--accent); color: #fff;
+  font-size: 17px; font-weight: 700; letter-spacing: -0.3px;
+  margin-top: 24px; flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+.onboard-start-btn:active { opacity: 0.8; }
+.onboard-skip {
+  font-size: 13px; color: var(--fg3); margin-top: 14px; text-align: center;
+}
+
+/* ══════════════════════════
+   RECORD SCREEN
+══════════════════════════ */
+#screen-record {
+  padding: 8px 0 16px;
+  align-items: center;
+}
+
+.hero-stat {
+  text-align: center; padding: 8px 20px 0; width: 100%;
+}
+.hero-label { font-size: 13px; color: var(--fg2); margin-bottom: 4px; }
+.hero-number {
+  font-family: var(--mono); font-size: 44px; font-weight: 600;
+  letter-spacing: -2px; line-height: 1;
+}
+.hero-unit { font-size: 17px; color: var(--fg2); font-weight: 400; margin-left: 2px; font-family: var(--mono); }
+.hero-meta { font-family: var(--mono); font-size: 12px; color: var(--fg3); margin-top: 5px; }
+
+/* Mic Ring */
+.ring-zone {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px; padding: 18px 20px 10px;
+}
+.ring-container {
+  position: relative; width: 228px; height: 228px;
+  display: flex; align-items: center; justify-content: center;
+}
+.ring-border {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 1.5px solid var(--border2);
+  transition: border-color 0.5s, box-shadow 0.6s;
+}
+.ring-border.live {
+  border-color: rgba(79,127,255,0.7);
+  box-shadow: 0 0 40px var(--accent-glow), 0 0 80px rgba(79,127,255,0.1), inset 0 0 50px rgba(79,127,255,0.05);
+}
+.ring-pulse {
+  position: absolute; inset: -16px; border-radius: 50%;
+  border: 1px solid var(--accent); opacity: 0; pointer-events: none;
+}
+.ring-pulse.on { animation: ring-out 2.2s ease-out infinite; }
+.ring-pulse.d2.on { animation-delay: 0.73s; }
+.ring-pulse.d3.on { animation-delay: 1.46s; }
+@keyframes ring-out {
+  0%   { transform: scale(0.82); opacity: 0.5; }
+  100% { transform: scale(1.06); opacity: 0; }
+}
+.mic-btn {
+  width: 184px; height: 184px; border-radius: 50%;
+  background: radial-gradient(ellipse at 38% 32%, rgba(79,127,255,0.1) 0%, transparent 60%), var(--surface);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 10px; position: relative; z-index: 2;
+  transition: transform 0.15s, background 0.5s; border: none;
+  -webkit-user-select: none; user-select: none;
+}
+.mic-btn:active { transform: scale(0.94); }
+.mic-btn.live {
+  background: radial-gradient(ellipse at 38% 32%, rgba(79,127,255,0.22) 0%, transparent 60%), var(--surface);
+}
+.waveform { display: flex; align-items: center; gap: 4px; height: 36px; }
+.waveform .bar { width: 3px; border-radius: 3px; background: var(--fg3); transition: background 0.3s; }
+.mic-btn.live .waveform .bar { background: var(--accent); }
+.mic-btn.live .waveform .bar:nth-child(1) { animation: wave 0.9s ease-in-out infinite 0.00s; }
+.mic-btn.live .waveform .bar:nth-child(2) { animation: wave 0.9s ease-in-out infinite 0.10s; }
+.mic-btn.live .waveform .bar:nth-child(3) { animation: wave 0.9s ease-in-out infinite 0.15s; }
+.mic-btn.live .waveform .bar:nth-child(4) { animation: wave 0.9s ease-in-out infinite 0.20s; }
+.mic-btn.live .waveform .bar:nth-child(5) { animation: wave 0.9s ease-in-out infinite 0.15s; }
+.mic-btn.live .waveform .bar:nth-child(6) { animation: wave 0.9s ease-in-out infinite 0.10s; }
+.mic-btn.live .waveform .bar:nth-child(7) { animation: wave 0.9s ease-in-out infinite 0.00s; }
+@keyframes wave { 0%,100%{transform:scaleY(0.3)} 50%{transform:scaleY(1)} }
+.mic-label { font-size: 13px; font-weight: 500; color: var(--fg2); letter-spacing: -0.2px; transition: color 0.3s; }
+.mic-btn.live .mic-label { color: var(--fg); }
+
+.transcript-pill {
+  background: var(--surface); border-radius: 100px;
+  padding: 10px 18px; font-size: 13px; color: var(--fg3);
+  max-width: calc(100% - 40px); text-align: center;
+  border: 1px solid var(--border); min-height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.3s, color 0.3s;
+}
+.transcript-pill.parsed { color: var(--fg); border-color: rgba(79,127,255,0.35); }
+.mic-status { font-size: 13px; color: var(--fg3); min-height: 18px; text-align: center; transition: color 0.3s; }
+.mic-status.live { color: var(--fg2); }
+
+/* Sets */
+.sets-section { width: 100%; padding: 0 20px; flex: 1; }
+.sets-header {
+  display: flex; justify-content: space-between; align-items: center; padding: 12px 0 8px;
+}
+.sets-title { font-size: 12px; font-weight: 600; color: var(--fg2); text-transform: uppercase; letter-spacing: 0.06em; }
+.add-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: 22px; line-height: 1;
+  display: flex; align-items: center; justify-content: center; font-weight: 300;
+}
+.add-btn:active { opacity: 0.8; }
+.set-row {
+  display: flex; align-items: center; padding: 11px 0;
+  border-bottom: 1px solid var(--border); gap: 10px;
+}
+.set-row:last-child { border-bottom: none; }
+.set-name-wrap { flex: 1; }
+.set-name { font-size: 15px; font-weight: 500; letter-spacing: -0.3px; }
+.set-time { font-family: var(--mono); font-size: 11px; color: var(--fg3); display: block; margin-top: 2px; }
+.set-nums { display: flex; align-items: baseline; gap: 6px; }
+.set-weight { font-family: var(--mono); font-size: 14px; font-weight: 500; }
+.set-reps { font-family: var(--mono); font-size: 13px; color: var(--fg2); }
+.set-delete { padding: 4px; color: var(--fg3); font-size: 15px; }
+.set-delete:active { color: var(--red); }
+.sets-empty { text-align: center; padding: 28px 0; color: var(--fg3); font-size: 14px; line-height: 1.9; }
+
+/* ══════════════════════════
+   SUMMARY SCREEN
+══════════════════════════ */
+#screen-summary { padding: 16px 20px 28px; gap: 18px; }
+
+.summary-date { font-size: 13px; color: var(--fg2); }
+.summary-date b { color: var(--fg); }
+.vol-block {}
+.vol-sublabel { font-size: 13px; color: var(--fg2); margin-bottom: 4px; }
+.vol-big { font-family: var(--mono); font-size: 52px; font-weight: 600; letter-spacing: -2px; line-height: 1; }
+.vol-big-unit { font-size: 20px; color: var(--fg2); font-weight: 400; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stat-tile { background: var(--surface); border-radius: var(--r-sm); padding: 14px 12px; }
+.stat-tile-label { font-size: 11px; color: var(--fg2); margin-bottom: 6px; letter-spacing: 0.02em; }
+.stat-tile-val { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -0.5px; }
+
+/* Body Map */
+.body-card { background: var(--surface); border-radius: var(--r); padding: 18px; }
+.card-title { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 16px; }
+.body-inner { display: grid; grid-template-columns: 96px 1fr; gap: 18px; align-items: center; }
+.body-svg-wrap { display: flex; justify-content: center; }
+.muscle-bars { display: flex; flex-direction: column; gap: 11px; }
+.muscle-bar-top {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 12px;
+}
+.muscle-bar-top span:last-child { font-family: var(--mono); color: var(--fg); }
+.muscle-track { height: 4px; background: var(--surface2); border-radius: 100px; overflow: hidden; }
+.muscle-fill { height: 100%; border-radius: 100px; transition: width 1.1s cubic-bezier(0.4,0,0.2,1); }
+.body-empty { color: var(--fg3); font-size: 12px; text-align: center; padding: 16px 0; }
+
+/* PR Card */
+.pr-card {
+  background: linear-gradient(135deg, rgba(255,215,10,0.07) 0%, rgba(255,159,10,0.04) 100%);
+  border: 1px solid rgba(255,215,10,0.2);
+  border-radius: var(--r); padding: 18px;
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.pr-trophy { font-size: 30px; line-height: 1; flex-shrink: 0; margin-top: 2px; }
+.pr-tag { font-size: 11px; font-weight: 600; color: var(--yellow); text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 4px; }
+.pr-ex { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+.pr-nums { font-family: var(--mono); font-size: 15px; color: var(--green); margin-top: 2px; }
+.pr-sub { font-size: 12px; color: var(--fg2); margin-top: 4px; }
+
+.end-btn {
+  width: 100%; height: 50px; border-radius: var(--r-sm);
+  background: rgba(255,69,58,0.1); color: var(--red);
+  font-size: 15px; font-weight: 600; letter-spacing: -0.2px;
+  border: 1px solid rgba(255,69,58,0.2);
+}
+.end-btn:active { background: rgba(255,69,58,0.18); }
+
+/* ══════════════════════════
+   HISTORY SCREEN
+══════════════════════════ */
+#screen-history { padding: 12px 20px 24px; gap: 0; }
+.hist-month {
+  font-size: 12px; font-weight: 600; color: var(--fg2);
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 0 8px;
+}
+.hist-month:first-child { padding-top: 4px; }
+.sess-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 0; border-bottom: 1px solid var(--border);
+}
+.sess-row:last-child { border-bottom: none; }
+.sess-date { text-align: center; flex-shrink: 0; width: 34px; }
+.sess-day-num { font-family: var(--mono); font-size: 26px; font-weight: 500; line-height: 1; }
+.sess-day-name { font-size: 11px; color: var(--fg3); margin-top: 2px; }
+.sess-info { flex: 1; min-width: 0; }
+.sess-name { font-size: 15px; font-weight: 500; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sess-vol { font-family: var(--mono); font-size: 13px; color: var(--accent); margin-top: 3px; }
+.sess-period {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  padding: 2px 7px; border-radius: 100px; margin-left: 6px;
+  text-transform: uppercase; letter-spacing: 0.06em; vertical-align: middle;
+}
+.period-morning  { background: rgba(255,215,10,0.15); color: var(--yellow); }
+.period-afternoon{ background: rgba(79,127,255,0.15); color: var(--accent); }
+.period-evening  { background: rgba(48,209,88,0.15);  color: var(--green); }
+.period-night    { background: rgba(142,142,147,0.15); color: var(--fg2); }
+.sess-chev { color: var(--fg3); font-size: 16px; flex-shrink: 0; }
+.hist-empty { padding: 60px 0; text-align: center; font-size: 14px; color: var(--fg3); }
+
+/* ══════════════════════════
+   SHEETS
+══════════════════════════ */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  z-index: 50; display: none; opacity: 0; transition: opacity 0.3s;
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+}
+.sheet-overlay.on { display: block; }
+.sheet-overlay.vis { opacity: 1; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  background: #161618; border-top: 1px solid var(--border2);
+  border-radius: 20px 20px 0 0;
+  padding: 0 20px calc(24px + env(safe-area-inset-bottom));
+  transform: translateY(100%); transition: transform 0.36s cubic-bezier(0.32,0.72,0,1);
+  max-height: 90dvh; overflow-y: auto; display: none;
+}
+.sheet.on { display: block; }
+.sheet.vis { transform: translateY(0); }
+.sheet-handle { width: 36px; height: 4px; background: var(--fg3); border-radius: 100px; margin: 12px auto 20px; }
+.sheet h3 { font-size: 18px; font-weight: 600; letter-spacing: -0.4px; margin-bottom: 20px; }
+.form-group { margin-bottom: 14px; }
+.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--fg2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.form-input {
+  width: 100%; padding: 14px 16px; background: var(--surface);
+  color: var(--fg); border: 1px solid var(--border2); border-radius: var(--r-sm); font-size: 16px;
+}
+.form-input:focus { outline: none; border-color: var(--accent); }
+.form-select {
+  width: 100%; padding: 14px 16px; background: var(--surface);
+  color: var(--fg); border: 1px solid var(--border2); border-radius: var(--r-sm);
+  font-size: 16px; -webkit-appearance: none;
+}
+.form-select:focus { outline: none; border-color: var(--accent); }
+.form-textarea {
+  width: 100%; padding: 14px 16px; background: var(--surface);
+  color: var(--fg); border: 1px solid var(--border2); border-radius: var(--r-sm);
+  font-size: 15px; resize: vertical; min-height: 72px;
+}
+.form-help { font-size: 12px; color: var(--fg3); line-height: 1.5; margin-top: 6px; }
+.form-help a { color: var(--accent); text-decoration: none; }
+.btn-primary {
+  width: 100%; height: 52px; border-radius: var(--r-sm);
+  background: var(--accent); color: #fff; font-size: 16px;
+  font-weight: 600; letter-spacing: -0.2px; margin-top: 20px;
+}
+.btn-primary:active { opacity: 0.8; }
+.btn-secondary {
+  width: 100%; height: 44px; border-radius: var(--r-sm);
+  background: var(--surface); color: var(--fg2);
+  font-size: 14px; font-weight: 500; margin-top: 10px; border: 1px solid var(--border);
+}
+.btn-danger {
+  width: 100%; height: 44px; border-radius: var(--r-sm);
+  background: rgba(255,69,58,0.1); color: var(--red);
+  font-size: 14px; font-weight: 500; margin-top: 10px; border: 1px solid rgba(255,69,58,0.2);
+}
+/* Toast */
+.toast {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 8px);
+  transform: translate(-50%, -56px);
+  background: rgba(44,44,46,0.95); color: var(--fg);
+  padding: 10px 20px; border-radius: 100px;
+  font-size: 13px; font-weight: 500;
+  z-index: 100; pointer-events: none; opacity: 0;
+  transition: all 0.3s cubic-bezier(0.32,0.72,0,1);
+  white-space: nowrap; border: 1px solid var(--border);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.toast.good { color: var(--green); border-color: rgba(48,209,88,0.3); }
+.toast.bad  { color: var(--red);   border-color: rgba(255,69,58,0.3); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="brand">
+      <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+        <rect x="5" y="11" width="2.4" height="10" rx="1.2" fill="white"/>
+        <rect x="2.5" y="13.5" width="2" height="5" rx="1" fill="white"/>
+        <rect x="24.6" y="11" width="2.4" height="10" rx="1.2" fill="white"/>
+        <rect x="27.5" y="13.5" width="2" height="5" rx="1" fill="white"/>
+        <path d="M7.4 16 L10 16 L11 12 L13 20 L15 14 L17 18 L19 13 L21 17 L22.6 16 L24.6 16"
+              stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      TalkFit
+    </div>
+    <div class="header-right">
+      <div class="status-dot" id="statusDot"></div>
+      <button class="icon-btn" id="settingsBtn" aria-label="設定">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- SCREENS WRAP -->
+  <div class="screens-wrap">
+
+    <!-- ═══ RECORD ═══ -->
+    <div class="screen active" id="screen-record" style="padding:8px 0 16px; align-items:center;">
+
+      <div class="hero-stat">
+        <div class="hero-label">今日の総重量</div>
+        <div>
+          <span class="hero-number" id="heroVol">0</span>
+          <span class="hero-unit">kg</span>
+        </div>
+        <div class="hero-meta" id="heroMeta">0 sets · 0 exercises</div>
+      </div>
+
+      <div class="ring-zone">
+        <div class="ring-container">
+          <div class="ring-border" id="ringBorder"></div>
+          <div class="ring-pulse" id="rp1"></div>
+          <div class="ring-pulse d2" id="rp2"></div>
+          <div class="ring-pulse d3" id="rp3"></div>
+          <button class="mic-btn" id="micBtn" aria-label="録音開始/停止">
+            <!-- IDLE: set count display -->
+            <div class="ring-idle-view" id="ringIdleView">
+              <div class="ring-set-num" id="ringSetNum">0</div>
+              <div class="ring-set-label">SETS</div>
+              <div class="ring-last-ex" id="ringLastEx"></div>
+              <div class="ring-tap-hint">タップして開始</div>
+            </div>
+            <!-- LIVE: waveform -->
+            <div class="ring-live-view" id="ringLiveView">
+              <div class="waveform" id="waveform">
+                <div class="bar" style="height:6px"></div>
+                <div class="bar" style="height:12px"></div>
+                <div class="bar" style="height:20px"></div>
+                <div class="bar" style="height:28px"></div>
+                <div class="bar" style="height:20px"></div>
+                <div class="bar" style="height:12px"></div>
+                <div class="bar" style="height:6px"></div>
+              </div>
+              <div class="mic-label" id="micLabel">記録中...</div>
+            </div>
+          </button>
+        </div>
+        <div class="transcript-pill" id="transcriptPill">小声でOK・自動で記録されます</div>
+        <div class="mic-status" id="micStatus"></div>
+      </div>
+
+      <div class="sets-section">
+        <div class="sets-header">
+          <div class="sets-title">直近の記録</div>
+          <button class="add-btn" id="manualBtn" aria-label="手動入力">+</button>
+        </div>
+        <div id="setsBody">
+          <div class="sets-empty" id="setsEmpty">まだ記録なし<br><span style="font-size:12px;color:var(--fg3);">声で話すか ＋ から追加</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ SUMMARY ═══ -->
+    <div class="screen" id="screen-summary" style="padding:16px 20px 28px; gap:18px;">
+
+      <!-- Period toggle -->
+      <div class="seg-control">
+        <button class="seg-btn active" data-period="day"  id="seg-day">今日</button>
+        <button class="seg-btn"        data-period="week" id="seg-week">今週</button>
+        <button class="seg-btn"        data-period="month"id="seg-month">今月</button>
+      </div>
+
+      <div class="summary-date" id="summaryDate"></div>
+
+      <div class="vol-block">
+        <div class="vol-sublabel" id="volLabel">今日の総重量</div>
+        <div>
+          <span class="vol-big" id="summaryVol">0</span>
+          <span class="vol-big-unit">kg</span>
+        </div>
+        <div id="summaryDelta" style="display:none; margin-top:10px; font-size:14px; align-items:center; gap:6px;"></div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-tile">
+          <div class="stat-tile-label">セット数</div>
+          <div class="stat-tile-val" id="statSets">0</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-tile-label">種目数</div>
+          <div class="stat-tile-val" id="statExercises">0</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-tile-label" id="stat3Label">経過時間</div>
+          <div class="stat-tile-val" style="font-size:17px;" id="stat3Val">—</div>
+        </div>
+      </div>
+
+      <!-- Body Map -->
+      <div class="body-card">
+        <div class="card-title" id="bodyMapTitle">部位別ボリューム</div>
+        <div class="body-inner">
+          <div class="body-svg-wrap">
+            <svg id="bodySvg" viewBox="0 0 100 222" width="88" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="50" cy="17" rx="13" ry="14" fill="#2C2C2E"/>
+              <rect x="44" y="29" width="12" height="9" rx="3" fill="#2C2C2E"/>
+              <ellipse cx="23" cy="51" rx="13" ry="9.5" fill="#2C2C2E" id="bm-shoulder-l" class="bm" data-g="shoulder"/>
+              <ellipse cx="77" cy="51" rx="13" ry="9.5" fill="#2C2C2E" id="bm-shoulder-r" class="bm" data-g="shoulder"/>
+              <path d="M34 43 Q50 39 66 43 L67 82 Q50 86 33 82 Z" fill="#2C2C2E" id="bm-chest" class="bm" data-g="chest"/>
+              <rect x="12" y="57" width="14" height="40" rx="7" fill="#2C2C2E" id="bm-arm-l" class="bm" data-g="arm"/>
+              <rect x="74" y="57" width="14" height="40" rx="7" fill="#2C2C2E" id="bm-arm-r" class="bm" data-g="arm"/>
+              <rect x="13" y="99" width="12" height="30" rx="6" fill="#2C2C2E" id="bm-fa-l" class="bm" data-g="arm"/>
+              <rect x="75" y="99" width="12" height="30" rx="6" fill="#2C2C2E" id="bm-fa-r" class="bm" data-g="arm"/>
+              <path d="M35 82 Q50 86 65 82 L63 116 Q50 120 37 116 Z" fill="#2C2C2E" id="bm-core" class="bm" data-g="core"/>
+              <path d="M33 114 Q50 118 67 114 L68 132 Q50 136 32 132 Z" fill="#2C2C2E" id="bm-hip" class="bm" data-g="leg"/>
+              <path d="M33 130 L50 128 L51 178 L29 178 Z" fill="#2C2C2E" id="bm-quad-l" class="bm" data-g="leg"/>
+              <path d="M50 128 L67 130 L71 178 L49 178 Z" fill="#2C2C2E" id="bm-quad-r" class="bm" data-g="leg"/>
+              <path d="M31 180 L50 180 L48 213 L34 213 Z" fill="#2C2C2E" id="bm-calf-l" class="bm" data-g="leg"/>
+              <path d="M50 180 L69 180 L67 213 L52 213 Z" fill="#2C2C2E" id="bm-calf-r" class="bm" data-g="leg"/>
+              <rect x="47.5" y="43" width="5" height="75" rx="2.5" fill="#2C2C2E" id="bm-back" class="bm" data-g="back" opacity="0.6"/>
+            </svg>
+          </div>
+          <div class="muscle-bars" id="muscleBars">
+            <div class="body-empty">記録すると表示されます</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PR Card (今日のみ表示) -->
+      <div class="pr-card" id="prCard" style="display:none;">
+        <div class="pr-trophy">🏆</div>
+        <div>
+          <div class="pr-tag">PR 更新</div>
+          <div class="pr-ex" id="prEx"></div>
+          <div class="pr-nums" id="prNums"></div>
+          <div class="pr-sub">自己ベストを更新しました！</div>
+        </div>
+      </div>
+
+      <!-- Weight Tracking Card -->
+      <div class="weight-card">
+        <div class="weight-header">
+          <div class="card-title" style="margin-bottom:0;">体重</div>
+          <button class="weight-add-btn" id="addWeightBtn">＋ 記録</button>
+        </div>
+        <div id="weightDisplay">
+          <div class="weight-empty">まだ体重の記録なし</div>
+        </div>
+      </div>
+
+      <button class="end-btn" id="endBtn">セッションを終了</button>
+
+    </div>
+
+    <!-- ═══ HISTORY ═══ -->
+    <div class="screen" id="screen-history" style="padding:12px 20px 24px; gap:0;">
+      <div id="historyBody">
+        <div class="hist-empty">まだセッション履歴なし</div>
+      </div>
+    </div>
+
+  </div><!-- /screens-wrap -->
+
+  <!-- Bottom Nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-tab="record" id="nav-record">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="12" cy="12" r="5.5"/>
+        <circle cx="12" cy="12" r="9.5" stroke-opacity="0.35"/>
+      </svg>
+      Record
+    </button>
+    <button class="nav-item" data-tab="summary" id="nav-summary">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/>
+        <path d="M14 17.5h7M17.5 14v7"/>
+      </svg>
+      Summary
+    </button>
+    <button class="nav-item" data-tab="history" id="nav-history">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 7v5l3.5 3.5"/>
+      </svg>
+      History
+    </button>
+  </nav>
+
+</div>
+
+<!-- Overlay -->
+<div class="sheet-overlay" id="sheetOverlay"></div>
+
+<!-- Weight Sheet -->
+<div class="sheet" id="sheetWeight">
+  <div class="sheet-handle"></div>
+  <h3>体重を記録</h3>
+  <div class="form-group">
+    <label class="form-label">体重（kg）</label>
+    <input class="form-input" id="wVal" type="number" inputmode="decimal" step="0.1" placeholder="75.0"/>
+  </div>
+  <div id="wRecentLabel" style="font-size:12px;color:var(--fg3);margin-top:-8px;margin-bottom:16px;"></div>
+  <button class="btn-primary" id="wSave">保存</button>
+  <button class="btn-secondary" id="wClose">キャンセル</button>
+</div>
+
+<!-- Settings Sheet -->
+<div class="sheet" id="sheetSettings">
+  <div class="sheet-handle"></div>
+  <h3>設定</h3>
+  <div class="form-group">
+    <label class="form-label">Groq API Key（音声認識）</label>
+    <input class="form-input" type="password" id="apiKey" placeholder="gsk_..." autocomplete="off"/>
+    <div class="form-help">Whisper音声認識に使用。<a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a> で取得（無料枠あり）</div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Whisperモデル</label>
+    <select class="form-select" id="model">
+      <option value="whisper-large-v3-turbo">whisper-large-v3-turbo（高速・推奨）</option>
+      <option value="whisper-large-v3">whisper-large-v3（高精度）</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">音楽再生モード</label>
+    <select class="form-select" id="musicMode">
+      <option value="on">ON — Spotifyなど流しながら使う</option>
+      <option value="off">OFF — エコーキャンセルあり</option>
+    </select>
+    <div class="form-help">Bluetoothスピーカーで音楽 + 本体マイクで声、がベスト</div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">無音しきい値（ms）</label>
+    <input class="form-input" type="number" id="silenceMs" step="100" min="500" max="4000"/>
+    <div class="form-help">話し終えてからこの時間後にセグメント送信</div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">音量しきい値（0–100）</label>
+    <input class="form-input" type="number" id="volThr" step="1" min="1" max="50"/>
+    <div class="form-help">ジムが騒がしければ上げる</div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">言語ヒント</label>
+    <select class="form-select" id="lang">
+      <option value="ja">日本語</option>
+      <option value="en">English</option>
+      <option value="">自動判定</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">種目略語マッピング</label>
+    <textarea class="form-textarea" id="aliases" placeholder="インクラ=インクラインベンチプレス&#10;PD=トライセプスプレスダウン"></textarea>
+  </div>
+  <button class="btn-primary" id="saveSettings">保存</button>
+  <button class="btn-secondary" id="closeSettings">閉じる</button>
+  <button class="btn-danger" id="resetAll">全データをリセット</button>
+</div>
+
+<!-- Manual Add Sheet -->
+<div class="sheet" id="sheetManual">
+  <div class="sheet-handle"></div>
+  <h3>手動入力</h3>
+  <div class="form-group">
+    <label class="form-label">種目</label>
+    <input class="form-input" id="mEx" placeholder="ベンチプレス"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">重量（kg）</label>
+    <input class="form-input" id="mW" type="number" inputmode="decimal" placeholder="80"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">回数</label>
+    <input class="form-input" id="mR" type="number" inputmode="numeric" placeholder="10"/>
+  </div>
+  <button class="btn-primary" id="mSave">追加</button>
+  <button class="btn-secondary" id="mClose">キャンセル</button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ───── Constants ─────
+const LS_KEY = 'talkfit_state_v3';
+const LS_CFG = 'talkfit_cfg_v3';
+const DAY = ['日','月','火','水','木','金','土'];
+
+// ── Muscle Groups ──
+const GROUPS = {
+  chest:    { label:'胸',   color:'#4F7FFF', parts:['bm-chest'] },
+  back:     { label:'背中', color:'#FF9F0A', parts:['bm-back'] },
+  shoulder: { label:'肩',   color:'#9B7FFF', parts:['bm-shoulder-l','bm-shoulder-r'] },
+  arm:      { label:'腕',   color:'#30D158', parts:['bm-arm-l','bm-arm-r','bm-fa-l','bm-fa-r'] },
+  leg:      { label:'脚',   color:'#0ACDFF', parts:['bm-hip','bm-quad-l','bm-quad-r','bm-calf-l','bm-calf-r'] },
+  core:     { label:'腹筋', color:'#FF6B6B', parts:['bm-core'] },
+};
+
+// ── Muscle Keywords (exact user list + common variants) ──
+const MUSCLE_KW = {
+  chest:    ['ベンチプレス','インクライン','ダンベルフライ','腕立て','プッシュアップ','フライ','チェスト','デクライン','ペックデック'],
+  back:     ['ラットプルダウン','バーベルロー','背中','プルダウン','ローイング','デッドリフト','チンアップ','懸垂','ケーブルロウ','フェイスプル'],
+  shoulder: ['ショルダープレス','サイドレイズ','フロントレイズ','シュラッグ','肩','アーノルド','ミリタリー','アップライト'],
+  arm:      ['アームカール','トライセプスプレスダウン','二頭筋','三頭筋','カール','プッシュダウン','トライセプス','ハンマー','スカルクラッシャー','キックバック'],
+  leg:      ['スクワット','レッグプレス','レッグカール','カーフレイズ','デッドリフト','レッグ','ランジ','ヒップ','ブルガリアン','ハムストリング'],
+  core:     ['アブローラー','腹筋','体幹','クランチ','プランク','アブ','レッグレイズ','バイシクル'],
+};
+
+function detectMuscle(name) {
+  if (!name) return null;
+  const n = name;
+  for (const [g, kws] of Object.entries(MUSCLE_KW)) {
+    if (kws.some(k => n.includes(k))) return g;
+  }
+  // Fallback: loose match
+  const nl = n.toLowerCase();
+  for (const [g, kws] of Object.entries(MUSCLE_KW)) {
+    if (kws.some(k => nl.includes(k.toLowerCase()))) return g;
+  }
+  return null;
+}
+
+// ── Time-of-day labels ──
+function getTimePeriod(ts) {
+  const h = new Date(ts).getHours();
+  if (h >= 5  && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 22) return 'evening';
+  return 'night';
+}
+
+function makeSessionName(ts) {
+  const d = new Date(ts);
+  const dateStr = `${d.getMonth()+1}/${d.getDate()}`;
+  const period = getTimePeriod(ts);
+  // Find existing sessions with same date + period
+  const d0 = new Date(ts); d0.setHours(0,0,0,0);
+  const same = state.sessions.filter(s => {
+    const sd = new Date(s.ts); sd.setHours(0,0,0,0);
+    return sd.getTime() === d0.getTime() && getTimePeriod(s.ts) === period;
+  });
+  if (same.length === 0) {
+    return `${dateStr} ${period}`;
+  } else if (same.length === 1) {
+    // Retroactively number the first one
+    same[0].name = `${dateStr} ${period}1`;
+    return `${dateStr} ${period}2`;
+  } else {
+    return `${dateStr} ${period}${same.length + 1}`;
+  }
+}
+
+// ───── State ─────
+const cfg = Object.assign({
+  apiKey:'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',
+  model:'whisper-large-v3-turbo',
+  silenceMs:1200, volThr:8, lang:'ja', aliases:'', musicMode:'on',
+}, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
+if (!cfg.apiKey) cfg.apiKey = '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';
+
+const state = Object.assign({
+  sessionStart:null, sets:[], lastExercise:null, sessions:[], weights:[],
+}, JSON.parse(localStorage.getItem(LS_KEY)||'{}'));
+// ensure weights array exists for legacy data
+if (!state.weights) state.weights = [];
+
+let curPeriod = 'day'; // 'day' | 'week' | 'month'
+
+function saveState() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+function saveCfg()   { localStorage.setItem(LS_CFG, JSON.stringify(cfg)); }
+
+function todaySets() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  return state.sets.filter(s => s.ts >= d.getTime());
+}
+function esc(s) {
+  return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+}
+
+// ───── Toast ─────
+const toastEl = document.getElementById('toast');
+let toastT;
+function toast(msg, kind) {
+  toastEl.className = 'toast on' + (kind?' '+kind:'');
+  toastEl.textContent = msg;
+  clearTimeout(toastT);
+  toastT = setTimeout(()=>toastEl.className='toast', 2600);
+}
+
+// ───── Tab Navigation (iOS-style slide) ─────
+const TABS = ['record', 'summary', 'history'];
+let curTabIdx = 0;
+let tabAnimating = false;
+
+// Init: position all non-first tabs off-screen to the right
+TABS.forEach((t, i) => {
+  if (i !== 0) document.getElementById('screen-'+t).style.transform = 'translateX(100%)';
+});
+
+function switchTab(name) {
+  const newIdx = TABS.indexOf(name);
+  if (newIdx === curTabIdx || tabAnimating) return;
+  tabAnimating = true;
+
+  const dir = newIdx > curTabIdx ? 1 : -1;
+  const oldEl = document.getElementById('screen-' + TABS[curTabIdx]);
+  const newEl = document.getElementById('screen-' + name);
+  const DUR = 340;
+  const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+
+  // Place new screen just off-screen (no transition yet)
+  newEl.style.transition = 'none';
+  newEl.style.transform = `translateX(${dir * 100}%)`;
+  newEl.classList.add('active');
+
+  // Force reflow, then animate both
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const tr = `transform ${DUR}ms ${EASE}`;
+    oldEl.style.transition = tr;
+    newEl.style.transition = tr;
+    oldEl.style.transform = `translateX(${-dir * 100}%)`;
+    newEl.style.transform = 'translateX(0)';
+
+    setTimeout(() => {
+      oldEl.classList.remove('active');
+      oldEl.style.transition = 'none';
+      oldEl.style.pointerEvents = '';
+      tabAnimating = false;
+      // Render new screen content
+      if (name === 'summary') renderSummary();
+      if (name === 'history') renderHistory();
+    }, DUR + 20);
+  }));
+
+  curTabIdx = newIdx;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-' + name).classList.add('active');
+}
+
+document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+
+// ───── Render ─────
+function render() { renderRecord(); renderSummary(); renderHistory(); }
+
+function renderRecord() {
+  const sets = todaySets();
+  const vol = sets.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
+  const exs = new Set(sets.filter(s=>s.exercise).map(s=>s.exercise));
+  document.getElementById('heroVol').textContent = vol.toLocaleString();
+  document.getElementById('heroMeta').textContent = `${sets.length} sets · ${exs.size} exercises`;
+
+  // Ring center: set count + last exercise
+  document.getElementById('ringSetNum').textContent = sets.length;
+  const lastEx = sets.length > 0 ? (sets[sets.length-1].exercise || '') : '';
+  document.getElementById('ringLastEx').textContent = lastEx;
+
+  const body = document.getElementById('setsBody');
+  const empty = document.getElementById('setsEmpty');
+  if (sets.length === 0) {
+    body.innerHTML = ''; body.appendChild(empty); empty.style.display='block'; return;
+  }
+  empty.style.display = 'none';
+  body.innerHTML = sets.slice().reverse().slice(0,25).map(s => {
+    const t = new Date(s.ts);
+    const tStr = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+    const pending = !s.exercise || s.weight==null || s.reps==null;
+    return `<div class="set-row" style="${pending?'opacity:0.45':''}">
+      <div class="set-name-wrap">
+        <div class="set-name">${esc(s.exercise||'不明')}</div>
+        <span class="set-time">${tStr}</span>
+      </div>
+      <div class="set-nums">
+        <span class="set-weight">${s.weight!=null?s.weight+'kg':'—'}</span>
+        <span class="set-reps">${s.reps!=null?'× '+s.reps:''}</span>
+      </div>
+      <button class="set-delete" data-id="${s.id}">✕</button>
+    </div>`;
+  }).join('');
+  body.querySelectorAll('.set-delete').forEach(b => {
+    b.onclick = () => {
+      state.sets = state.sets.filter(s=>s.id!==b.dataset.id);
+      saveState(); renderRecord(); renderSummary();
+    };
+  });
+}
+
+// ── Period helpers ──
+function getPeriodStart(period) {
+  const now = new Date();
+  if (period === 'day') {
+    const d = new Date(now); d.setHours(0,0,0,0); return d.getTime();
+  } else if (period === 'week') {
+    const d = new Date(now); d.setHours(0,0,0,0);
+    const day = d.getDay();
+    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); // back to Monday
+    return d.getTime();
+  } else {
+    return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  }
+}
+function getFilteredSets(period) {
+  return state.sets.filter(s => s.ts >= getPeriodStart(period));
+}
+function getPrevPeriodVol(period) {
+  if (period === 'day') return state.sessions[0]?.vol || 0;
+  const thisStart = getPeriodStart(period);
+  let prevStart;
+  if (period === 'week') {
+    prevStart = thisStart - 7*86400000;
+  } else {
+    const now = new Date();
+    prevStart = new Date(now.getFullYear(), now.getMonth()-1, 1).getTime();
+  }
+  return state.sets
+    .filter(s => s.ts >= prevStart && s.ts < thisStart)
+    .reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
+}
+function countSessionsInPeriod(period) {
+  const sets = getFilteredSets(period);
+  const dates = new Set(sets.map(s => {
+    const d = new Date(s.ts);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  }));
+  return dates.size;
+}
+
+function renderSummary() {
+  const sets = getFilteredSets(curPeriod);
+  const vol = sets.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
+  const exs = new Set(sets.filter(s=>s.exercise).map(s=>s.exercise));
+  const now = new Date();
+
+  const pl = {day:'今日',week:'今週',month:'今月'}[curPeriod];
+  document.getElementById('volLabel').textContent = `${pl}の総重量`;
+  document.getElementById('bodyMapTitle').textContent = `部位別ボリューム（${pl}）`;
+
+  if (curPeriod === 'day') {
+    document.getElementById('summaryDate').innerHTML =
+      `<b>${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日（${DAY[now.getDay()]}）</b>`;
+  } else if (curPeriod === 'week') {
+    const ws = new Date(getPeriodStart('week'));
+    document.getElementById('summaryDate').innerHTML =
+      `<b>${ws.getMonth()+1}/${ws.getDate()}（月）〜 今週</b>`;
+  } else {
+    document.getElementById('summaryDate').innerHTML =
+      `<b>${now.getFullYear()}年${now.getMonth()+1}月</b>`;
+  }
+
+  document.getElementById('summaryVol').textContent = vol.toLocaleString();
+  document.getElementById('statSets').textContent = sets.length;
+  document.getElementById('statExercises').textContent = exs.size;
+
+  if (curPeriod === 'day') {
+    document.getElementById('stat3Label').textContent = '経過時間';
+    if (state.sessionStart) {
+      const sec = Math.floor((Date.now()-state.sessionStart)/1000);
+      document.getElementById('stat3Val').textContent =
+        `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+    } else {
+      document.getElementById('stat3Val').textContent = '—';
+    }
+  } else {
+    document.getElementById('stat3Label').textContent = 'セッション数';
+    document.getElementById('stat3Val').textContent = countSessionsInPeriod(curPeriod);
+  }
+
+  // Previous period comparison
+  const deltaEl = document.getElementById('summaryDelta');
+  const prevVol = getPrevPeriodVol(curPeriod);
+  if (prevVol > 0 && vol > 0) {
+    const delta = vol - prevVol;
+    const pct = Math.round(delta / prevVol * 100);
+    const sign = delta >= 0 ? '+' : '';
+    const cls = delta >= 0 ? 'up' : 'dn';
+    const arrow = delta >= 0 ? '↑' : '↓';
+    const vsLabel = {day:'前回',week:'先週',month:'先月'}[curPeriod];
+    deltaEl.style.display = 'flex';
+    deltaEl.innerHTML =
+      `<span class="${cls}" style="font-weight:600;">${arrow} ${sign}${pct}%</span>` +
+      `<span class="${cls}" style="font-size:13px;">${sign}${delta.toLocaleString()}kg</span>` +
+      `<span style="color:var(--fg3);font-size:12px;">vs ${vsLabel}</span>`;
+  } else {
+    deltaEl.style.display = 'none';
+  }
+
+  renderBodyMap(sets);
+  document.getElementById('prCard').style.display = 'none';
+  if (curPeriod === 'day') renderPR(sets);
+  renderWeightCard();
+}
+
+function renderWeightCard() {
+  const ws = state.weights;
+  const el = document.getElementById('weightDisplay');
+  if (!ws || ws.length === 0) {
+    el.innerHTML = '<div class="weight-empty">まだ体重の記録なし</div>'; return;
+  }
+  const latest = ws[ws.length-1];
+  const prev = ws.length >= 2 ? ws[ws.length-2] : null;
+  const delta = prev ? latest.value - prev.value : null;
+  let deltaHtml = '';
+  if (delta !== null) {
+    const sign = delta >= 0 ? '+' : '';
+    const cls = delta <= 0 ? 'up' : 'dn'; // losing weight = green
+    deltaHtml = `<div class="weight-delta"><span class="${cls}">${sign}${delta.toFixed(1)}kg</span> <span style="color:var(--fg3);font-size:12px;">前回比</span></div>`;
+  }
+  const ld = new Date(latest.ts);
+  const dateStr = `${ld.getMonth()+1}/${ld.getDate()} ${String(ld.getHours()).padStart(2,'0')}:${String(ld.getMinutes()).padStart(2,'0')}`;
+  el.innerHTML = `
+    <div class="weight-main">
+      <span class="weight-big">${latest.value.toFixed(1)}</span>
+      <span class="weight-unit">kg</span>
+    </div>
+    <div class="weight-sub">${dateStr}</div>
+    ${deltaHtml}
+    <div id="weightSpark" class="weight-spark"></div>
+  `;
+  if (ws.length >= 2) {
+    const pts = ws.slice(-14);
+    const vals = pts.map(w=>w.value);
+    const minV = Math.min(...vals)-0.3, maxV = Math.max(...vals)+0.3;
+    const range = maxV-minV||1;
+    const W=300, H=44;
+    const coords = pts.map((w,i)=>{
+      const x=(i/(pts.length-1))*W;
+      const y=H-((w.value-minV)/range)*(H-8)-4;
+      return [x,y];
+    });
+    const poly = coords.map(c=>c.join(',')).join(' ');
+    const area = `M${coords[0][0]},${H} `+coords.map(c=>`L${c[0]},${c[1]}`).join(' ')+` L${coords[coords.length-1][0]},${H} Z`;
+    const [lx,ly] = coords[coords.length-1];
+    document.getElementById('weightSpark').innerHTML =
+      `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="overflow:visible;display:block;margin-top:6px">
+        <defs><linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+        </linearGradient></defs>
+        <path d="${area}" fill="url(#wg)"/>
+        <polyline points="${poly}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${lx}" cy="${ly}" r="4" fill="var(--accent)"/>
+      </svg>`;
+  }
+}
+
+
+function renderBodyMap(sets) {
+  const mv = {};
+  for (const s of sets) {
+    if (!s.exercise||!s.weight||!s.reps) continue;
+    const g = detectMuscle(s.exercise);
+    if (!g) continue;
+    mv[g] = (mv[g]||0) + s.weight * s.reps;
+  }
+  // Reset SVG
+  document.querySelectorAll('.bm').forEach(el => {
+    el.setAttribute('fill','#2C2C2E'); el.removeAttribute('fill-opacity');
+  });
+  const barsEl = document.getElementById('muscleBars');
+  const total = Object.values(mv).reduce((a,b)=>a+b,0);
+  if (total === 0) {
+    barsEl.innerHTML = '<div class="body-empty">記録すると表示されます</div>'; return;
+  }
+  const sorted = Object.entries(mv).sort(([,a],[,b])=>b-a);
+  for (const [g,v] of sorted) {
+    const info = GROUPS[g]; if(!info) continue;
+    const op = (0.35 + (v/total)*0.65).toFixed(2);
+    for (const pid of info.parts) {
+      const el = document.getElementById(pid);
+      if (el) { el.setAttribute('fill',info.color); el.setAttribute('fill-opacity',op); }
+    }
+  }
+  barsEl.innerHTML = sorted.map(([g,v]) => {
+    const info = GROUPS[g];
+    const pct = Math.round(v/total*100);
+    return `<div style="margin-bottom:11px">
+      <div class="muscle-bar-top">
+        <span style="color:var(--fg2)">${info.label}</span>
+        <span>${pct}%</span>
+      </div>
+      <div class="muscle-track">
+        <div class="muscle-fill" style="width:${pct}%;background:${info.color};"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderPR(todaySets) {
+  const d = new Date(); d.setHours(0,0,0,0);
+  const todayStart = d.getTime();
+  let best = null;
+  for (const s of todaySets) {
+    if (!s.exercise||s.weight==null||s.reps==null) continue;
+    const e1 = s.weight*(1+s.reps/30);
+    const prevBest = state.sets
+      .filter(p=>p.exercise===s.exercise&&p.ts<todayStart&&p.weight!=null&&p.reps!=null)
+      .reduce((mx,p)=>{const pe=p.weight*(1+p.reps/30);return pe>mx?pe:mx;},0);
+    if (e1>prevBest&&prevBest>0&&(!best||e1>best.e1)) {
+      best={exercise:s.exercise,weight:s.weight,reps:s.reps,e1};
+    }
+  }
+  const card = document.getElementById('prCard');
+  if (best) {
+    card.style.display='flex';
+    document.getElementById('prEx').textContent = best.exercise;
+    document.getElementById('prNums').textContent = `${best.weight}kg × ${best.reps}回`;
+  } else { card.style.display='none'; }
+}
+
+function renderHistory() {
+  const body = document.getElementById('historyBody');
+  const all = [...state.sessions];
+  const today = todaySets();
+  if (today.length > 0) {
+    const vol = today.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
+    all.unshift({ id:'today', ts:state.sessionStart||Date.now(), vol, name: null, isToday:true });
+  }
+  if (all.length === 0) {
+    body.innerHTML='<div class="hist-empty">まだセッション履歴なし</div>'; return;
+  }
+  const byMonth={};
+  for (const s of all) {
+    const d=new Date(s.ts);
+    const key=`${d.getFullYear()}年${d.getMonth()+1}月`;
+    if(!byMonth[key]) byMonth[key]=[];
+    byMonth[key].push(s);
+  }
+  body.innerHTML = Object.entries(byMonth).map(([month,sessions])=>`
+    <div class="hist-month">${month}</div>
+    ${sessions.map(sess=>{
+      const d=new Date(sess.ts);
+      const period = getTimePeriod(sess.ts);
+      const periodLabel = sess.isToday ? '進行中' : period;
+      const displayName = sess.isToday
+        ? `${d.getMonth()+1}/${d.getDate()} ${period}`
+        : (sess.name || `${d.getMonth()+1}/${d.getDate()} ${period}`);
+      const vol = (sess.vol||0).toLocaleString();
+      const periodClass = `period-${period}`;
+      return `<div class="sess-row">
+        <div class="sess-date">
+          <div class="sess-day-num">${d.getDate()}</div>
+          <div class="sess-day-name">${DAY[d.getDay()]}</div>
+        </div>
+        <div class="sess-info">
+          <div class="sess-name">
+            ${esc(displayName)}
+            <span class="sess-period ${periodClass}">${periodLabel}</span>
+          </div>
+          <div class="sess-vol">${vol} kg</div>
+        </div>
+        <div class="sess-chev">›</div>
+      </div>`;
+    }).join('')}
+  `).join('');
+}
+
+// ───── Sheets ─────
+const overlay = document.getElementById('sheetOverlay');
+function openSheet(id) {
+  const s=document.getElementById(id);
+  s.classList.add('on');
+  overlay.classList.add('on');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    s.classList.add('vis'); overlay.classList.add('vis');
+  }));
+}
+function closeSheets() {
+  document.querySelectorAll('.sheet.on').forEach(s=>{
+    s.classList.remove('vis');
+    setTimeout(()=>s.classList.remove('on'),360);
+  });
+  overlay.classList.remove('vis');
+  setTimeout(()=>overlay.classList.remove('on'),360);
+}
+overlay.onclick = closeSheets;
+
+// ───── Settings ─────
+document.getElementById('settingsBtn').onclick = () => {
+  document.getElementById('apiKey').value=cfg.apiKey||'';
+  document.getElementById('model').value=cfg.model;
+  document.getElementById('musicMode').value=cfg.musicMode;
+  document.getElementById('silenceMs').value=cfg.silenceMs;
+  document.getElementById('volThr').value=cfg.volThr;
+  document.getElementById('lang').value=cfg.lang;
+  document.getElementById('aliases').value=cfg.aliases;
+  openSheet('sheetSettings');
+};
+document.getElementById('closeSettings').onclick = closeSheets;
+document.getElementById('saveSettings').onclick = () => {
+  cfg.apiKey=document.getElementById('apiKey').value.trim();
+  cfg.model=document.getElementById('model').value;
+  cfg.musicMode=document.getElementById('musicMode').value;
+  cfg.silenceMs=+document.getElementById('silenceMs').value;
+  cfg.volThr=+document.getElementById('volThr').value;
+  cfg.lang=document.getElementById('lang').value;
+  cfg.aliases=document.getElementById('aliases').value;
+  saveCfg(); closeSheets(); toast('保存しました','good');
+};
+document.getElementById('resetAll').onclick = () => {
+  if(!confirm('すべてのデータと設定を消去しますか？')) return;
+  localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_CFG);
+  location.reload();
+};
+
+// ───── Manual Add ─────
+document.getElementById('manualBtn').onclick = () => {
+  document.getElementById('mEx').value=state.lastExercise||'';
+  document.getElementById('mW').value='';
+  document.getElementById('mR').value='';
+  openSheet('sheetManual');
+};
+document.getElementById('mClose').onclick = closeSheets;
+document.getElementById('mSave').onclick = () => {
+  const ex=document.getElementById('mEx').value.trim();
+  const w=parseFloat(document.getElementById('mW').value);
+  const r=parseInt(document.getElementById('mR').value,10);
+  if(!ex||isNaN(w)||isNaN(r)){ toast('入力が不足しています','bad'); return; }
+  if(!state.sessionStart) state.sessionStart=Date.now();
+  state.sets.push({id:'m'+Date.now(),ts:Date.now(),exercise:ex,weight:w,reps:r,transcript:'(manual)',raw:{}});
+  state.lastExercise=ex;
+  saveState(); closeSheets(); render();
+  playSuccessTone();
+  if(navigator.vibrate) navigator.vibrate(30);
+  toast(`${ex} ${w}kg × ${r}回 追加`,'good');
+};
+
+// ───── End Session ─────
+document.getElementById('endBtn').onclick = () => {
+  if(!confirm('セッションを終了しますか？\n（データは履歴に保存されます）')) return;
+  stopCapture();
+  const today = todaySets();
+  if(today.length > 0){
+    const vol=today.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
+    const sessName = makeSessionName(state.sessionStart||Date.now());
+    state.sessions.unshift({
+      id:'s'+Date.now(), ts:state.sessionStart||Date.now(),
+      vol, name:sessName,
+    });
+    saveState(); // save with updated session (makeSessionName may have mutated existing sessions)
+  }
+  state.sessionStart=null;
+  saveState(); toast('セッション終了','good');
+  render(); switchTab('history');
+};
+
+// ───── Alias ─────
+function applyAlias(name) {
+  const lines=(cfg.aliases||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  for(const ln of lines){
+    const[k,v]=ln.split('=').map(s=>(s||'').trim());
+    if(k&&v&&(name===k||name.includes(k))) return v;
+  }
+  return name;
+}
+
+// ───── Parse with Groq LLM ─────
+async function parseUtterance(text) {
+  const prompt =
+`あなたは筋トレ記録の発話パーサーです。次の日本語発話から種目・重量・回数を抽出してください。
+
+ルール:
+- 数字は漢数字・読み(「ろくじゅっきろ」「じゅっかい」)も解釈する
+- 種目が明示されていない場合は exercise を null に
+- 「同じで」「もう一回」「また」など相対表現は reps:null exercise:null
+- 「セット終わり」「次」など制御発話は set_end:true
+- 雑談・無関係な音は全フィールドnull
+- weight, reps は数値(または null)。文字列禁止
+- 必ずJSONオブジェクトのみ返す
+
+発話: "${text}"
+
+返すJSONのキー: exercise(string|null), weight(number|null), reps(number|null), set_end(boolean), note(string|null)`;
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + cfg.apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+      temperature: 0,
+      max_tokens: 150,
+    }),
+  });
+
+  if (!res.ok) throw new Error('Groq LLM error: ' + res.status);
+  const data = await res.json();
+  const out = data.choices?.[0]?.message?.content;
+  if (!out) throw new Error('Groq LLM: empty response');
+  return JSON.parse(out);
+}
+
+// ───── Audio ─────
+let recState='idle';
+let audioCtx,analyser,mediaStream,processor;
+let segBuffer=[],segTimer,isVoice=false,silenceStart=null;
+let elapsedTimer;
+let keepAwakeOsc=null, keepAwakeGain=null;
+
+// ── 1. Screen-off fix: play inaudible tone to keep iOS audio session alive ──
+function startKeepAwake() {
+  if (!audioCtx) return;
+  try {
+    keepAwakeGain = audioCtx.createGain();
+    keepAwakeGain.gain.value = 0.00001; // Completely inaudible (≈ −100dB)
+    keepAwakeOsc = audioCtx.createOscillator();
+    keepAwakeOsc.frequency.value = 440;
+    keepAwakeOsc.connect(keepAwakeGain);
+    keepAwakeGain.connect(audioCtx.destination);
+    keepAwakeOsc.start();
+  } catch(e) {}
+}
+function stopKeepAwake() {
+  try {
+    if (keepAwakeOsc) { keepAwakeOsc.stop(); keepAwakeOsc.disconnect(); keepAwakeOsc=null; }
+    if (keepAwakeGain) { keepAwakeGain.disconnect(); keepAwakeGain=null; }
+  } catch(e) {}
+}
+
+// Resume AudioContext if iOS suspended it on screen-on
+document.addEventListener('visibilitychange', async () => {
+  if (recState !== 'live') return;
+  if (document.visibilityState === 'visible' && audioCtx && audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch(e) {}
+  }
+});
+
+// ── 2. Success tone: short ascending "ding" on set recorded ──
+function playSuccessTone() {
+  const ctx = audioCtx;
+  if (!ctx || ctx.state !== 'running') return;
+  try {
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1046.5, t);       // C6
+    osc.frequency.setValueAtTime(1318.5, t + 0.09); // E6
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.18, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    osc.start(t);
+    osc.stop(t + 0.3);
+  } catch(e) {}
+}
+
+async function startCapture(){
+  if(!cfg.apiKey){ openSheet('sheetSettings'); toast('Groq APIキーを設定してください','bad'); return; }
+  try {
+    const constraints=cfg.musicMode==='on'
+      ?{audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}
+      :{audio:true};
+    mediaStream=await navigator.mediaDevices.getUserMedia(constraints);
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=256;
+    const src=audioCtx.createMediaStreamSource(mediaStream);
+    processor=audioCtx.createScriptProcessor(4096,1,1);
+    src.connect(analyser); src.connect(processor); processor.connect(audioCtx.destination);
+    const freqData=new Uint8Array(analyser.frequencyBinCount);
+    processor.onaudioprocess=e=>{
+      analyser.getByteFrequencyData(freqData);
+      const vol=freqData.reduce((a,b)=>a+b,0)/freqData.length;
+      updateBars(freqData);
+      const speaking=vol>cfg.volThr;
+      if(speaking){
+        segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
+        clearTimeout(segTimer); isVoice=true; silenceStart=null;
+        segTimer=setTimeout(flushSeg,cfg.silenceMs);
+      } else if(isVoice){
+        segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
+        if(!silenceStart) silenceStart=Date.now();
+        if(Date.now()-silenceStart>cfg.silenceMs){ clearTimeout(segTimer); flushSeg(); }
+      }
+    };
+    startKeepAwake(); // iOS screen-off fix
+    if(!state.sessionStart) state.sessionStart=Date.now();
+    recState='live'; setUiLive(true); saveState();
+    elapsedTimer=setInterval(()=>{
+      if(!state.sessionStart) return;
+      const sec=Math.floor((Date.now()-state.sessionStart)/1000);
+      document.getElementById('statElapsed').textContent=
+        `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+    },1000);
+  } catch(e){ toast('マイクにアクセスできません: '+e.message,'bad'); }
+}
+
+function stopCapture(){
+  recState='idle';
+  stopKeepAwake();
+  if(processor){processor.disconnect();processor=null;}
+  if(analyser){analyser.disconnect();analyser=null;}
+  if(audioCtx){audioCtx.close();audioCtx=null;}
+  if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
+  segBuffer=[]; clearTimeout(segTimer); isVoice=false; silenceStart=null;
+  clearInterval(elapsedTimer); setUiLive(false);
+}
+
+function updateBars(freqData){
+  const bars=document.querySelectorAll('.waveform .bar');
+  bars.forEach((b,i)=>{
+    const idx=Math.floor(i*freqData.length/bars.length);
+    b.style.height=(recState==='live'?Math.max(4,freqData[idx]/4):([6,12,20,28,20,12,6][i]))+'px';
+  });
+}
+
+async function flushSeg(){
+  if(segBuffer.length<4800){ segBuffer=[]; isVoice=false; return; }
+  const buf=segBuffer.slice(); segBuffer=[]; isVoice=false; silenceStart=null;
+  const wav=encodeWAV(buf,16000);
+  const blob=new Blob([wav],{type:'audio/wav'});
+  let text;
+  try {
+    const fd=new FormData();
+    fd.append('file',blob,'audio.wav');
+    fd.append('model',cfg.model);
+    fd.append('response_format','text');
+    if(cfg.lang) fd.append('language',cfg.lang);
+    const res=await fetch('https://api.groq.com/openai/v1/audio/transcriptions',{
+      method:'POST',headers:{'Authorization':'Bearer '+cfg.apiKey},body:fd,
+    });
+    text=(await res.text()).trim();
+  } catch(e){ return; }
+  if(!text||text.length<2) return;
+  setTranscript(text,false);
+  let parsed;
+  try{ parsed=await parseUtterance(text); } catch(e){ return; }
+  if(!parsed) return;
+  if(parsed.exercise) parsed.exercise=applyAlias(parsed.exercise);
+  if(!parsed.exercise&&state.lastExercise) parsed.exercise=state.lastExercise;
+  if(parsed.exercise) state.lastExercise=parsed.exercise;
+  if(parsed.weight!=null||parsed.reps!=null||parsed.exercise){
+    const row={
+      id:'r'+Date.now()+Math.random().toString(36).slice(2,6),
+      ts:Date.now(), exercise:parsed.exercise||null,
+      weight:parsed.weight, reps:parsed.reps, transcript:text, raw:parsed,
+    };
+    state.sets.push(row); saveState();
+    setTranscript(`${row.exercise||'?'} · ${row.weight??'?'}kg × ${row.reps??'?'}`,true);
+    render();
+    playSuccessTone();
+    if(navigator.vibrate) navigator.vibrate(30);
+  } else if(parsed.note){
+    setTranscript('NOTE: '+parsed.note,false);
+  }
+}
+
+function setTranscript(text,parsed){
+  const p=document.getElementById('transcriptPill');
+  p.textContent=text;
+  p.className='transcript-pill'+(parsed?' parsed':'');
+}
+
+function encodeWAV(samples,sr){
+  const buf=new ArrayBuffer(44+samples.length*2);
+  const v=new DataView(buf);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  w(0,'RIFF');v.setUint32(4,36+samples.length*2,true);
+  w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);
+  v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);
+  v.setUint16(32,2,true);v.setUint16(34,16,true);
+  w(36,'data');v.setUint32(40,samples.length*2,true);
+  let o=44; samples.forEach(s=>{v.setInt16(o,Math.max(-1,Math.min(1,s))*0x7FFF,true);o+=2;});
+  return buf;
+}
+
+// ───── UI State ─────
+function setUiLive(live){
+  document.getElementById('micBtn').classList.toggle('live',live);
+  document.getElementById('ringBorder').classList.toggle('live',live);
+  document.getElementById('statusDot').classList.toggle('live',live);
+  document.getElementById('rp1').classList.toggle('on',live);
+  document.getElementById('rp2').classList.toggle('on',live);
+  document.getElementById('rp3').classList.toggle('on',live);
+
+  // Toggle ring inner view
+  const idleView = document.getElementById('ringIdleView');
+  const liveView = document.getElementById('ringLiveView');
+  if (live) {
+    idleView.style.display = 'none';
+    liveView.style.display = 'flex';
+  } else {
+    idleView.style.display = 'flex';
+    liveView.style.display = 'none';
+    setTranscript('小声でOK・自動で記録されます', false);
+    updateBars([]);
+  }
+
+  const st = document.getElementById('micStatus');
+  st.textContent = live ? '小声でOK・自動で記録しています' : '';
+  st.classList.toggle('live', live);
+}
+
+// ───── Onboarding ─────
+const LS_ONBOARD = 'talkfit_onboarded_v1';
+
+function showOnboarding() {
+  const el = document.getElementById('onboardOverlay');
+  el.style.display = 'flex';
+  requestAnimationFrame(() => el.style.opacity = '1');
+  // Assign handlers here: onboarding HTML lives after <script>, so must wait until shown
+  document.getElementById('onboardStartBtn').onclick = dismissOnboarding;
+  document.getElementById('onboardSkip').onclick = dismissOnboarding;
+}
+
+function dismissOnboarding() {
+  localStorage.setItem(LS_ONBOARD, '1');
+  const el = document.getElementById('onboardOverlay');
+  el.classList.add('out');
+  setTimeout(() => { el.style.display = 'none'; }, 450);
+}
+
+document.getElementById('micBtn').onclick = async()=>{
+  if(recState==='idle') await startCapture(); else stopCapture();
+};
+
+// ───── Period Toggle ─────
+document.querySelectorAll('.seg-btn').forEach(btn => {
+  btn.onclick = () => {
+    curPeriod = btn.dataset.period;
+    document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderSummary();
+  };
+});
+
+// ───── Weight Sheet ─────
+document.getElementById('addWeightBtn').onclick = () => {
+  const ws = state.weights;
+  const latest = ws.length > 0 ? ws[ws.length-1] : null;
+  document.getElementById('wVal').value = latest ? latest.value : '';
+  document.getElementById('wRecentLabel').textContent = latest
+    ? `前回: ${latest.value.toFixed(1)}kg`
+    : '';
+  openSheet('sheetWeight');
+  setTimeout(() => document.getElementById('wVal').focus(), 350);
+};
+document.getElementById('wClose').onclick = closeSheets;
+document.getElementById('wSave').onclick = () => {
+  const v = parseFloat(document.getElementById('wVal').value);
+  if (isNaN(v) || v < 20 || v > 300) { toast('体重を正しく入力してください','bad'); return; }
+  state.weights.push({ ts: Date.now(), value: v });
+  saveState(); closeSheets(); renderWeightCard();
+  toast(`${v.toFixed(1)}kg を記録しました`,'good');
+};
+
+// ───── Init ─────
+if(!localStorage.getItem(LS_ONBOARD)) setTimeout(()=>showOnboarding(), 200);
+render();
+</script>
+<!-- Onboarding Overlay (shown on first launch only) -->
+<div class="onboard-overlay" id="onboardOverlay" style="display:none;">
+
+  <div class="onboard-logo">
+    <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+      <rect x="5" y="11" width="2.4" height="10" rx="1.2" fill="white"/>
+      <rect x="2.5" y="13.5" width="2" height="5" rx="1" fill="white"/>
+      <rect x="24.6" y="11" width="2.4" height="10" rx="1.2" fill="white"/>
+      <rect x="27.5" y="13.5" width="2" height="5" rx="1" fill="white"/>
+      <path d="M7.4 16 L10 16 L11 12 L13 20 L15 14 L17 18 L19 13 L21 17 L22.6 16 L24.6 16"
+            stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    TalkFit
+  </div>
+  <div class="onboard-sub">声で話すだけで自動記録。<br>スマホを触らなくていい筋トレアプリ。</div>
+
+  <div class="onboard-steps">
+
+    <!-- Step 1 -->
+    <div class="onboard-step">
+      <div class="onboard-step-tag">基本</div>
+      <div class="onboard-step-title">種目・重量・回数を声で</div>
+      <div class="onboard-bubble">
+        <span class="onboard-bubble-icon">🎙️</span>
+        ベンチプレス　80キロ　10回
+      </div>
+      <div class="onboard-arrow">記録される内容</div>
+      <div class="onboard-result">
+        <span class="onboard-tag">ベンチプレス</span>
+        <span class="onboard-tag">80kg</span>
+        <span class="onboard-tag">×10</span>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="onboard-step">
+      <div class="onboard-step-tag">省略OK</div>
+      <div class="onboard-step-title">種目は言わなくていい</div>
+      <div class="onboard-bubble">
+        <span class="onboard-bubble-icon">🎙️</span>
+        80キロ　8回
+      </div>
+      <div class="onboard-arrow">前の種目が引き継がれる</div>
+      <div class="onboard-result">
+        <span class="onboard-tag">ベンチプレス</span>
+        <span class="onboard-tag">80kg</span>
+        <span class="onboard-tag">×8</span>
+      </div>
+      <div class="onboard-desc">「同じで10回」「また10回」なども通じます</div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="onboard-step">
+      <div class="onboard-step-tag">ポイント</div>
+      <div class="onboard-step-title">画面を見なくて大丈夫</div>
+      <div class="onboard-desc" style="margin-top:0;">
+        リングをタップして録音開始したら、あとはセット間に声で記録するだけ。<br><br>
+        ✅ &nbsp;ポケットに入れたまま使える<br>
+        ✅ &nbsp;音楽を流しながらでもOK<br>
+        ✅ &nbsp;記録できたら短い音で通知
+      </div>
+    </div>
+
+  </div>
+
+  <button class="onboard-start-btn" id="onboardStartBtn">はじめる</button>
+  <div class="onboard-skip" id="onboardSkip">スキップ</div>
+
+</div>
+
+</body>
+</html>
