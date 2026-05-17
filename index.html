@@ -876,11 +876,11 @@ function makeSessionName(ts) {
 
 // ───── State ─────
 const cfg = Object.assign({
-  apiKey:'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',
+  apiKey:'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',
   model:'whisper-large-v3-turbo',
   silenceMs:1200, volThr:8, lang:'ja', aliases:'', musicMode:'on',
 }, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
-if (!cfg.apiKey) cfg.apiKey = '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';
+if(!cfg.apiKey) cfg.apiKey='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';
 
 const state = Object.assign({
   sessionStart:null, sets:[], lastExercise:null, sessions:[], weights:[],
@@ -1475,11 +1475,20 @@ function playSuccessTone() {
 async function startCapture(){
   if(!cfg.apiKey){ openSheet('sheetSettings'); toast('Groq APIキーを設定してください','bad'); return; }
   try {
-    const constraints=cfg.musicMode==='on'
-      ?{audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}
-      :{audio:true};
+    // iOS: 音楽と共存するための制約設定
+    const constraints = {
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      }
+    };
     mediaStream=await navigator.mediaDevices.getUserMedia(constraints);
-    audioCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+    // latencyHint:'playback' でiOSがSpotifyを止めにくくなる
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)({
+      sampleRate:16000,
+      latencyHint:'playback',
+    });
     analyser=audioCtx.createAnalyser(); analyser.fftSize=256;
     const src=audioCtx.createMediaStreamSource(mediaStream);
     processor=audioCtx.createScriptProcessor(4096,1,1);
