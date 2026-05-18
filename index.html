@@ -878,7 +878,7 @@ function makeSessionName(ts) {
 const cfg = Object.assign({
   apiKey:'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',
   model:'whisper-large-v3-turbo',
-  silenceMs:1200, volThr:8, lang:'ja', aliases:'', musicMode:'on',
+  silenceMs:1200, volThr:3, lang:'ja', aliases:'', musicMode:'on',
 }, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
 if(!cfg.apiKey) cfg.apiKey='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';
 
@@ -1486,7 +1486,6 @@ async function startCapture(){
     mediaStream=await navigator.mediaDevices.getUserMedia(constraints);
     // latencyHint:'playback' でiOSがSpotifyを止めにくくなる
     audioCtx=new (window.AudioContext||window.webkitAudioContext)({
-      sampleRate:16000,
       latencyHint:'playback',
     });
     analyser=audioCtx.createAnalyser(); analyser.fftSize=256;
@@ -1541,9 +1540,10 @@ function updateBars(freqData){
 }
 
 async function flushSeg(){
-  if(segBuffer.length<4800){ segBuffer=[]; isVoice=false; return; }
+  if(segBuffer.length<1600){ segBuffer=[]; isVoice=false; return; }
   const buf=segBuffer.slice(); segBuffer=[]; isVoice=false; silenceStart=null;
-  const wav=encodeWAV(buf,16000);
+  const sr = (audioCtx && audioCtx.sampleRate) ? audioCtx.sampleRate : 44100;
+  const wav=encodeWAV(buf, sr);
   const blob=new Blob([wav],{type:'audio/wav'});
   let text;
   try {
