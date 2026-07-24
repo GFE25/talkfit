@@ -1488,18 +1488,25 @@ async function startCapture(){
     audioCtx=new (window.AudioContext||window.webkitAudioContext)({
       latencyHint:'playback',
     });
-    analyser=audioCtx.createAnalyser(); analyser.fftSize=256;
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=2048;
     const src=audioCtx.createMediaStreamSource(mediaStream);
     processor=audioCtx.createScriptProcessor(4096,1,1);
     src.connect(analyser); src.connect(processor); processor.connect(audioCtx.destination);
     const freqData=new Uint8Array(analyser.frequencyBinCount);
+    // 声の周波数帯（300Hz〜3400Hz）だけを見て、音楽（低音/高音）の影響を減らす
+    const nyquist = audioCtx.sampleRate / 2;
+    const binHz = nyquist / analyser.frequencyBinCount;
+    const voiceLoBin = Math.floor(300 / binHz);
+    const voiceHiBin = Math.ceil(3400 / binHz);
     processor.onaudioprocess=e=>{
       analyser.getByteFrequencyData(freqData);
-      const vol=freqData.reduce((a,b)=>a+b,0)/freqData.length;
+      let sum=0, count=0;
+      for (let i=voiceLoBin; i<=voiceHiBin && i<freqData.length; i++) { sum+=freqData[i]; count++; }
+      const vol = count>0 ? sum/count : 0;
       updateBars(freqData);
       // デバッグ：現在の音量をリアルタイム表示
       const dbgEl = document.getElementById('micStatus');
-      if (dbgEl) dbgEl.textContent = `音量: ${vol.toFixed(1)} / しきい値: ${cfg.volThr}`;
+      if (dbgEl) dbgEl.textContent = `音量(声帯域): ${vol.toFixed(1)} / しきい値: ${cfg.volThr}`;
       const speaking=vol>cfg.volThr;
       if(speaking){
         segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
