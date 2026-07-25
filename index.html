@@ -876,11 +876,10 @@ function makeSessionName(ts) {
 
 // ───── State ─────
 const cfg = Object.assign({
-  apiKey:'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',
+  apiKey:'',
   model:'whisper-large-v3-turbo',
   silenceMs:1200, volThr:3, lang:'ja', aliases:'', musicMode:'on',
 }, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
-if(!cfg.apiKey) cfg.apiKey='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';
 
 const state = Object.assign({
   sessionStart:null, sets:[], lastExercise:null, sessions:[], weights:[],
@@ -1309,7 +1308,7 @@ document.getElementById('settingsBtn').onclick = () => {
   openSheet('sheetSettings');
 };
 document.getElementById('closeSettings').onclick = closeSheets;
-document.getElementById('saveSettings').onclick = () => {
+document.getElementById('saveSettings').onclick = async () => {
   cfg.apiKey=document.getElementById('apiKey').value.trim();
   cfg.model=document.getElementById('model').value;
   cfg.musicMode=document.getElementById('musicMode').value;
@@ -1317,7 +1316,26 @@ document.getElementById('saveSettings').onclick = () => {
   cfg.volThr=+document.getElementById('volThr').value;
   cfg.lang=document.getElementById('lang').value;
   cfg.aliases=document.getElementById('aliases').value;
-  saveCfg(); closeSheets(); toast('保存しました','good');
+  saveCfg();
+
+  // APIキーが入力されていれば有効性を即チェック
+  if (cfg.apiKey) {
+    toast('APIキーを確認中...', null);
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { 'Authorization': 'Bearer ' + cfg.apiKey },
+      });
+      if (res.ok) {
+        closeSheets(); toast('APIキー有効・保存しました','good');
+      } else {
+        toast('APIキーが無効です（'+res.status+'）','bad');
+      }
+    } catch(e) {
+      toast('確認できませんでした（通信エラー）','bad');
+    }
+  } else {
+    closeSheets(); toast('保存しました','good');
+  }
 };
 document.getElementById('resetAll').onclick = () => {
   if(!confirm('すべてのデータと設定を消去しますか？')) return;
@@ -1504,9 +1522,6 @@ async function startCapture(){
       for (let i=voiceLoBin; i<=voiceHiBin && i<freqData.length; i++) { sum+=freqData[i]; count++; }
       const vol = count>0 ? sum/count : 0;
       updateBars(freqData);
-      // デバッグ：現在の音量をリアルタイム表示
-      const dbgEl = document.getElementById('micStatus');
-      if (dbgEl) dbgEl.textContent = `音量(声帯域): ${vol.toFixed(1)} / しきい値: ${cfg.volThr}`;
       const speaking=vol>cfg.volThr;
       if(speaking){
         segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
@@ -1550,7 +1565,6 @@ function updateBars(freqData){
 }
 
 async function flushSeg(){
-  toast(`セグメント確定: ${segBuffer.length}サンプル`, segBuffer.length>=1600?'good':'bad');
   if(segBuffer.length<1600){ segBuffer=[]; isVoice=false; return; }
   const buf=segBuffer.slice(); segBuffer=[]; isVoice=false; silenceStart=null;
   const sr = (audioCtx && audioCtx.sampleRate) ? audioCtx.sampleRate : 44100;
@@ -1655,7 +1669,10 @@ function dismissOnboarding() {
   localStorage.setItem(LS_ONBOARD, '1');
   const el = document.getElementById('onboardOverlay');
   el.classList.add('out');
-  setTimeout(() => { el.style.display = 'none'; }, 450);
+  setTimeout(() => {
+    el.style.display = 'none';
+    if(!cfg.apiKey) openSheet('sheetSettings'); // キー未設定なら設定へ誘導
+  }, 450);
 }
 
 document.getElementById('micBtn').onclick = async()=>{
@@ -1693,7 +1710,12 @@ document.getElementById('wSave').onclick = () => {
 };
 
 // ───── Init ─────
-if(!localStorage.getItem(LS_ONBOARD)) setTimeout(()=>showOnboarding(), 200);
+if(!localStorage.getItem(LS_ONBOARD)) {
+  setTimeout(()=>showOnboarding(), 200);
+} else if(!cfg.apiKey) {
+  // オンボーディング済みだがキー未設定なら設定を開く
+  setTimeout(()=>openSheet('sheetSettings'), 300);
+}
 render();
 </script>
 <!-- Onboarding Overlay (shown on first launch only) -->
