@@ -740,6 +740,11 @@ input, select, textarea { font-family: inherit; }
     <div class="form-help">Whisper音声認識に使用。<a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a> で取得（無料枠あり）</div>
   </div>
   <div class="form-group">
+    <label class="form-label">Claude API Key（発話解析・任意）</label>
+    <input class="form-input" type="password" id="claudeKey" placeholder="sk-ant-..." autocomplete="off"/>
+    <div class="form-help">通常の発話は端末内で解析するため未設定でも動作します。複雑な言い回しの精度を上げたい場合のみ設定。<a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a></div>
+  </div>
+  <div class="form-group">
     <label class="form-label">Whisperモデル</label>
     <select class="form-select" id="model">
       <option value="whisper-large-v3-turbo">whisper-large-v3-turbo（高速・推奨）</option>
@@ -876,7 +881,8 @@ function makeSessionName(ts) {
 
 // ───── State ─────
 const cfg = Object.assign({
-  apiKey:'',
+  apiKey:'',        // Groq（Whisper音声認識用）
+  claudeKey:'',     // Claude（発話解析用）
   model:'whisper-large-v3-turbo',
   silenceMs:1200, volThr:3, lang:'ja', aliases:'', musicMode:'on',
 }, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
@@ -1299,6 +1305,7 @@ overlay.onclick = closeSheets;
 // ───── Settings ─────
 document.getElementById('settingsBtn').onclick = () => {
   document.getElementById('apiKey').value=cfg.apiKey||'';
+  document.getElementById('claudeKey').value=cfg.claudeKey||'';
   document.getElementById('model').value=cfg.model;
   document.getElementById('musicMode').value=cfg.musicMode;
   document.getElementById('silenceMs').value=cfg.silenceMs;
@@ -1310,6 +1317,7 @@ document.getElementById('settingsBtn').onclick = () => {
 document.getElementById('closeSettings').onclick = closeSheets;
 document.getElementById('saveSettings').onclick = async () => {
   cfg.apiKey=document.getElementById('apiKey').value.trim();
+  cfg.claudeKey=document.getElementById('claudeKey').value.trim();
   cfg.model=document.getElementById('model').value;
   cfg.musicMode=document.getElementById('musicMode').value;
   cfg.silenceMs=+document.getElementById('silenceMs').value;
@@ -1394,44 +1402,148 @@ function applyAlias(name) {
   return name;
 }
 
-// ───── Parse with Groq LLM ─────
-async function parseUtterance(text) {
+// ───── 発話解析：ローカル優先 → Claude APIフォールバック ─────
+
+// 全角数字・漢数字を半角に正規化
+function normalizeNumbers(t) {
+  let s = t.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const kanji = {'〇':0,'零':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+  // 「六十五」「十二」「二十」などの漢数字を数値化
+  s = s.replace(/[〇零一二三四五六七八九十百]+/g, m => {
+    if (!/[十百]/.test(m)) {
+      let out=''; for (const c of m) { if (kanji[c]===undefined) return m; out+=kanji[c]; }
+      return out;
+    }
+    let total=0, cur=0;
+    for (const c of m) {
+      if (c==='百') { total += (cur||1)*100; cur=0; }
+      else if (c==='十') { total += (cur||1)*10; cur=0; }
+      else if (kanji[c]!==undefined) { cur = kanji[c]; }
+      else return m;
+    }
+    return String(total + cur);
+  });
+  return s;
+}
+
+// 既知の種目キーワード一覧（MUSCLE_KW＋ユーザー登録の略語）
+function knownExerciseTerms() {
+  const terms = [];
+  for (const kws of Object.values(MUSCLE_KW)) terms.push(...kws);
+  (cfg.aliases||'').split(/[\n,]/).forEach(line => {
+    const [alias, full] = line.split('=').map(x => (x||'').trim());
+    if (alias) terms.push(alias);
+    if (full) terms.push(full);
+  });
+  // 長い語を優先してマッチさせる
+  return [...new Set(terms)].sort((a,b) => b.length - a.length);
+}
+
+// ローカル解析：単純パターンをAPIなしで即処理
+function localParse(raw) {
+  const t = normalizeNumbers(raw);
+
+  // 制御発話
+  if (/(セット終わり|セット終了|終わり|次[のへ]?$|次！?$)/.test(t.trim())) {
+    return { exercise:null, weight:null, reps:null, set_end:true, note:null, _local:true };
+  }
+
+  // 重量：「80キロ」「80kg」「80キロで」
+  let weight = null;
+  const wM = t.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|KG|Kg)/);
+  if (wM) weight = parseFloat(wM[1]);
+
+  // 回数：「10回」「10レップ」「10発」
+  let reps = null;
+  const rM = t.match(/(\d+)\s*(?:回|かい|レップ|reps?|発)/);
+  if (rM) reps = parseInt(rM[1], 10);
+
+  // 「80キロ10」のように単位なしで並ぶケース
+  if (weight !== null && reps === null) {
+    const tail = t.slice(t.indexOf(wM[0]) + wM[0].length);
+    const t2 = tail.match(/(\d+)/);
+    if (t2) reps = parseInt(t2[1], 10);
+  }
+
+  // 種目名の抽出
+  let exercise = null;
+  for (const term of knownExerciseTerms()) {
+    if (term && t.includes(term)) { exercise = term; break; }
+  }
+
+  // 数字が一切なく制御発話でもない＝雑談。API を呼ばずに捨てる
+  if (!/\d/.test(t)) return { _noise:true };
+
+  // 回数が取れない、または「キロ」と言っているのに数値が取れない場合は
+  // 言い回しが複雑なのでローカル解析は失敗扱い（Claudeに回す）
+  if (reps === null) return null;
+  if (weight === null && /キロ|きろ|kg|KG|Kg/.test(t)) return null;
+
+  return { exercise, weight, reps, set_end:false, note:null, _local:true };
+}
+
+// Claude APIで解析（ローカルで解釈できなかった発話のみ）
+async function parseWithClaude(text) {
+  if (!cfg.claudeKey) throw new Error('Claude APIキーが未設定');
   const prompt =
-`あなたは筋トレ記録の発話パーサーです。次の日本語発話から種目・重量・回数を抽出してください。
+`次の日本語発話から筋トレのセット情報を抽出してください。
 
 ルール:
-- 数字は漢数字・読み(「ろくじゅっきろ」「じゅっかい」)も解釈する
+- 数字は漢数字・読み（「ろくじゅっきろ」「じゅっかい」）も解釈する
 - 種目が明示されていない場合は exercise を null に
-- 「同じで」「もう一回」「また」など相対表現は reps:null exercise:null
+- 「同じで」「もう一回」「また」など相対表現は exercise:null weight:null
 - 「セット終わり」「次」など制御発話は set_end:true
 - 雑談・無関係な音は全フィールドnull
-- weight, reps は数値(または null)。文字列禁止
-- 必ずJSONオブジェクトのみ返す
+- weight, reps は数値または null（文字列は禁止）
+- JSONオブジェクトのみを返し、説明文やマークダウンは付けない
 
 発話: "${text}"
 
-返すJSONのキー: exercise(string|null), weight(number|null), reps(number|null), set_end(boolean), note(string|null)`;
+キー: exercise(string|null), weight(number|null), reps(number|null), set_end(boolean), note(string|null)`;
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'Authorization': 'Bearer ' + cfg.apiKey,
-      'Content-Type': 'application/json',
+      'x-api-key': cfg.claudeKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
+      model: 'claude-sonnet-4-6',
+      max_tokens: 200,
       temperature: 0,
-      max_tokens: 150,
+      messages: [{ role: 'user', content: prompt }],
     }),
   });
 
-  if (!res.ok) throw new Error('Groq LLM error: ' + res.status);
+  if (!res.ok) throw new Error('Claude ' + res.status);
   const data = await res.json();
-  const out = data.choices?.[0]?.message?.content;
-  if (!out) throw new Error('Groq LLM: empty response');
-  return JSON.parse(out);
+  const out = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  const m = out.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('Claude: JSONなし');
+  return JSON.parse(m[0]);
+}
+
+// 統合エントリポイント
+async function parseUtterance(text) {
+  const local = localParse(text);
+  if (local && local._noise) return null;   // 雑談：API呼び出しなしで無視
+  if (local) return local;                  // 大多数のケースはここで完了（API 0回）
+
+  // ローカルで解釈できない複雑な言い回しのみClaudeへ
+  if (cfg.claudeKey) {
+    try { return await parseWithClaude(text); } catch(e) { /* 下の緩和処理へ */ }
+  }
+  // Claude未設定・失敗時：回数だけでも拾えていれば記録する
+  const t = normalizeNumbers(text);
+  const rM = t.match(/(\d+)\s*(?:回|かい|レップ|reps?|発)/);
+  const wM = t.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|KG|Kg)/);
+  if (rM) return {
+    exercise:null, weight: wM?parseFloat(wM[1]):null,
+    reps:parseInt(rM[1],10), set_end:false, note:null, _local:true,
+  };
+  return null;
 }
 
 // ───── Audio ─────
@@ -1570,8 +1682,8 @@ async function flushSeg(){
   const sr = (audioCtx && audioCtx.sampleRate) ? audioCtx.sampleRate : 44100;
   const wav=encodeWAV(buf, sr);
   const blob=new Blob([wav],{type:'audio/wav'});
-  let text;
-  try {
+  // Whisper送信（レート制限は自動リトライ、最大2回）
+  async function transcribe(attempt){
     const fd=new FormData();
     fd.append('file',blob,'audio.wav');
     fd.append('model',cfg.model);
@@ -1580,17 +1692,33 @@ async function flushSeg(){
     const res=await fetch('https://api.groq.com/openai/v1/audio/transcriptions',{
       method:'POST',headers:{'Authorization':'Bearer '+cfg.apiKey},body:fd,
     });
-    text=(await res.text()).trim();
-  } catch(e){ return; }
+    if(res.status===429 && attempt<2){
+      setTranscript('混雑中・再試行しています…',false);
+      await new Promise(r=>setTimeout(r,4000));
+      return transcribe(attempt+1);
+    }
+    if(!res.ok){
+      if(res.status===401) toast('Groq APIキーが無効です','bad');
+      else if(res.status===429) toast('混雑のためスキップしました','bad');
+      else toast('音声認識エラー '+res.status,'bad');
+      return null;
+    }
+    return (await res.text()).trim();
+  }
+
+  let text;
+  try { text = await transcribe(0); }
+  catch(e){ toast('通信エラー','bad'); return; }
   if(!text||text.length<2) return;
   setTranscript(text,false);
   let parsed;
-  try{ parsed=await parseUtterance(text); } catch(e){ return; }
+  try{ parsed=await parseUtterance(text); }
+  catch(e){ toast('解析できませんでした','bad'); return; }
   if(!parsed) return;
   if(parsed.exercise) parsed.exercise=applyAlias(parsed.exercise);
   if(!parsed.exercise&&state.lastExercise) parsed.exercise=state.lastExercise;
   if(parsed.exercise) state.lastExercise=parsed.exercise;
-  if(parsed.weight!=null||parsed.reps!=null||parsed.exercise){
+  if(parsed.weight!=null||parsed.reps!=null){
     const row={
       id:'r'+Date.now()+Math.random().toString(36).slice(2,6),
       ts:Date.now(), exercise:parsed.exercise||null,
