@@ -1326,23 +1326,24 @@ document.getElementById('saveSettings').onclick = async () => {
   cfg.aliases=document.getElementById('aliases').value;
   saveCfg();
 
-  // APIキーが入力されていれば有効性を即チェック
+  // 保存は必ず完了させる（検証結果に関わらずブロックしない）
+  closeSheets();
+  toast('保存しました','good');
+
+  // 参考情報として有効性チェックを裏で試みる（失敗しても保存は取り消さない）
   if (cfg.apiKey) {
-    toast('APIキーを確認中...', null);
     try {
       const res = await fetch('https://api.groq.com/openai/v1/models', {
         headers: { 'Authorization': 'Bearer ' + cfg.apiKey },
       });
-      if (res.ok) {
-        closeSheets(); toast('APIキー有効・保存しました','good');
-      } else {
-        toast('APIキーが無効です（'+res.status+'）','bad');
+      if (res.status === 401) {
+        toast('注意：このAPIキーは無効の可能性があります','bad');
       }
+      // res.ok や CORS/通信エラーの場合は何も表示しない
+      // （検証手段そのものが失敗しただけの可能性があるため、誤って不安を煽らない）
     } catch(e) {
-      toast('確認できませんでした（通信エラー）','bad');
+      // CORS等で検証自体ができない場合は静かに無視。実際の動作は録音時に確認できる
     }
-  } else {
-    closeSheets(); toast('保存しました','good');
   }
 };
 document.getElementById('resetAll').onclick = () => {
