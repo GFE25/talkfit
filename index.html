@@ -820,7 +820,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 7; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 8; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -1561,7 +1561,7 @@ async function parseUtterance(text) {
 
 // ───── Audio ─────
 // 診断表示：録音が動かない時に「どこで止まっているか」を画面で見えるようにする
-let dbgFrames=0, dbgPeak=0, dbgHoldUntil=0;
+let dbgFrames=0, dbgPeak=0, dbgHoldUntil=0, dbgVol=0, dbgRawPeak=0, statusTimer=null;
 function dbg(msg, holdMs){
   if(cfg.debugMode!=='on') return;
   if(!holdMs && Date.now()<dbgHoldUntil) return; // 認識結果を上書きしない
@@ -1665,7 +1665,13 @@ async function startCapture(){
       updateBars(freqData);
       const speaking=vol>cfg.volThr;
       dbgFrames++;                      // 発火回数は常に数える（診断の要）
+      dbgVol=vol;
       if(vol>dbgPeak) dbgPeak=vol;
+      // 生波形の振幅も見る：周波数解析(analyser)と生データ(inputBuffer)の
+      // どちらが無音なのかを切り分けるため
+      const ch=e.inputBuffer.getChannelData(0);
+      let pk=0; for(let i=0;i<ch.length;i+=16){ const a=Math.abs(ch[i]); if(a>pk) pk=a; }
+      if(pk>dbgRawPeak) dbgRawPeak=pk;
       if(cfg.debugMode==='on'){
         if(dbgFrames%5===0){
           const sr0=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
@@ -1684,14 +1690,18 @@ async function startCapture(){
       }
     };
     startKeepAwake(); // iOS screen-off fix
-    dbgFrames=0; dbgPeak=0;
+    dbgFrames=0; dbgPeak=0; dbgRawPeak=0; dbgVol=0;
     dbg(`起動 ctx=${audioCtx.state} ${audioCtx.sampleRate}Hz`);
-    // 診断モードOFFでも、音声系が起動したかは常に確認できるようにする
-    setTimeout(()=>{
+    // 診断モードOFFでも状態を常時表示する。
+    // raw= が 0.000 のままならマイクから無音しか届いていない（他アプリがマイクを
+    // 占有している等）、raw は動くのに vol が小さいなら判定側の問題、と切り分けられる。
+    clearInterval(statusTimer);
+    statusTimer=setInterval(()=>{
       const st=document.getElementById('micStatus');
-      if(st) st.textContent=`ctx=${audioCtx?audioCtx.state:'none'} `
-        +`${audioCtx?audioCtx.sampleRate:0}Hz frames=${dbgFrames} [build ${BUILD}]`;
-    },1500);
+      if(!st) return;
+      st.textContent=`vol${dbgVol.toFixed(1)}/peak${dbgPeak.toFixed(1)}/thr${cfg.volThr}`
+        +` raw${dbgRawPeak.toFixed(3)} f${dbgFrames} [b${BUILD}]`;
+    },400);
     if(!state.sessionStart) state.sessionStart=Date.now();
     recState='live'; setUiLive(true); saveState();
     elapsedTimer=setInterval(()=>{
@@ -1711,7 +1721,7 @@ function stopCapture(){
   if(audioCtx){audioCtx.close();audioCtx=null;}
   if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
   segBuffer=[]; clearTimeout(segTimer); isVoice=false; silenceStart=null;
-  clearInterval(elapsedTimer); setUiLive(false);
+  clearInterval(elapsedTimer); clearInterval(statusTimer); statusTimer=null; setUiLive(false);
 }
 
 function updateBars(freqData){
