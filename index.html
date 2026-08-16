@@ -1678,10 +1678,14 @@ function updateBars(freqData){
   });
 }
 
+// OpenAI Whisperの下限は0.1秒。物音による極小セグメント(1フレーム=4096サンプルは
+// 48kHzで僅か85ms)がAPIに送られて400になるのを防ぐため、秒数基準で足切りする。
+const MIN_SEG_SEC = 0.4;
+
 async function flushSeg(){
-  if(segBuffer.length<1600){ segBuffer=[]; isVoice=false; return; }
-  const buf=segBuffer.slice(); segBuffer=[]; isVoice=false; silenceStart=null;
   const sr = (audioCtx && audioCtx.sampleRate) ? audioCtx.sampleRate : 44100;
+  if(segBuffer.length < sr * MIN_SEG_SEC){ segBuffer=[]; isVoice=false; silenceStart=null; return; }
+  const buf=segBuffer.slice(); segBuffer=[]; isVoice=false; silenceStart=null;
   const wav=encodeWAV(buf, sr);
   const blob=new Blob([wav],{type:'audio/wav'});
   // Whisper送信（レート制限は自動リトライ、最大2回）
@@ -1694,15 +1698,35 @@ async function flushSeg(){
     const res=await fetch('https://api.openai.com/v1/audio/transcriptions',{
       method:'POST',headers:{'Authorization':'Bearer '+cfg.apiKey},body:fd,
     });
-    if(res.status===429 && attempt<2){
-      setTranscript('混雑中・再試行しています…',false);
-      await new Promise(r=>setTimeout(r,4000));
-      return transcribe(attempt+1);
-    }
     if(!res.ok){
+      // エラー内容を読み取る（原因の切り分けにはステータスコードだけでは足りない）
+      let code='', msg='';
+      try {
+        const body = await res.text();
+        try { const j=JSON.parse(body); code=j.error?.code||''; msg=j.error?.message||''; }
+        catch(_) { msg = body.slice(0,120); }
+      } catch(_) {}
+
+      // 短すぎる音声は物音由来。ユーザーに見せる価値がないので黙って捨てる
+      if(res.status===400 && code==='audio_too_short') return null;
+
+      // 429はレート制限と残高不足の両方で返る。混同すると原因を見誤る
+      if(res.status===429){
+        if(code==='insufficient_quota'){
+          toast('OpenAIの残高が不足しています','bad');
+          return null;
+        }
+        if(attempt<2){
+          setTranscript('混雑中・再試行しています…',false);
+          await new Promise(r=>setTimeout(r,4000));
+          return transcribe(attempt+1);
+        }
+        toast('混雑のためスキップしました','bad');
+        return null;
+      }
+
       if(res.status===401) toast('OpenAI APIキーが無効です','bad');
-      else if(res.status===429) toast('混雑のためスキップしました','bad');
-      else toast('音声認識エラー '+res.status,'bad');
+      else toast('音声認識エラー '+res.status+(msg?'：'+msg:''),'bad');
       return null;
     }
     return (await res.text()).trim();
