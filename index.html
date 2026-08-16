@@ -735,9 +735,9 @@ input, select, textarea { font-family: inherit; }
   <div class="sheet-handle"></div>
   <h3>設定</h3>
   <div class="form-group">
-    <label class="form-label">Groq API Key（音声認識）</label>
-    <input class="form-input" type="password" id="apiKey" placeholder="gsk_..." autocomplete="off"/>
-    <div class="form-help">Whisper音声認識に使用。<a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a> で取得（無料枠あり）</div>
+    <label class="form-label">OpenAI API Key（音声認識）</label>
+    <input class="form-input" type="password" id="apiKey" placeholder="sk-..." autocomplete="off"/>
+    <div class="form-help">Whisper音声認識に使用。<a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a> で取得</div>
   </div>
   <div class="form-group">
     <label class="form-label">Claude API Key（発話解析・任意）</label>
@@ -747,8 +747,9 @@ input, select, textarea { font-family: inherit; }
   <div class="form-group">
     <label class="form-label">Whisperモデル</label>
     <select class="form-select" id="model">
-      <option value="whisper-large-v3-turbo">whisper-large-v3-turbo（高速・推奨）</option>
-      <option value="whisper-large-v3">whisper-large-v3（高精度）</option>
+      <option value="whisper-1">whisper-1（推奨・確実）</option>
+      <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe（安価・高精度）</option>
+      <option value="gpt-4o-transcribe">gpt-4o-transcribe（最高精度）</option>
     </select>
   </div>
   <div class="form-group">
@@ -812,7 +813,7 @@ input, select, textarea { font-family: inherit; }
 <script>
 // ───── Constants ─────
 const LS_KEY = 'talkfit_state_v3';
-const LS_CFG = 'talkfit_cfg_v5'; // v5: 新APIキー強制反映
+const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
 
 // ── Muscle Groups ──
@@ -881,9 +882,9 @@ function makeSessionName(ts) {
 
 // ───── State ─────
 const cfg = Object.assign({
-  apiKey:'',        // Groq（Whisper音声認識用）
+  apiKey:'',        // OpenAI（Whisper音声認識用）
   claudeKey:'',     // Claude（発話解析用）
-  model:'whisper-large-v3-turbo',
+  model:'whisper-1',
   silenceMs:1200, volThr:3, lang:'ja', aliases:'', musicMode:'on',
 }, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
 
@@ -1333,7 +1334,7 @@ document.getElementById('saveSettings').onclick = async () => {
   // 参考情報として有効性チェックを裏で試みる（失敗しても保存は取り消さない）
   if (cfg.apiKey) {
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/models', {
+      const res = await fetch('https://api.openai.com/v1/models', {
         headers: { 'Authorization': 'Bearer ' + cfg.apiKey },
       });
       if (res.status === 401) {
@@ -1604,7 +1605,7 @@ function playSuccessTone() {
 }
 
 async function startCapture(){
-  if(!cfg.apiKey){ openSheet('sheetSettings'); toast('Groq APIキーを設定してください','bad'); return; }
+  if(!cfg.apiKey){ openSheet('sheetSettings'); toast('OpenAI APIキーを設定してください','bad'); return; }
   try {
     // iOS: 音楽と共存するための制約設定
     const constraints = {
@@ -1690,7 +1691,7 @@ async function flushSeg(){
     fd.append('model',cfg.model);
     fd.append('response_format','text');
     if(cfg.lang) fd.append('language',cfg.lang);
-    const res=await fetch('https://api.groq.com/openai/v1/audio/transcriptions',{
+    const res=await fetch('https://api.openai.com/v1/audio/transcriptions',{
       method:'POST',headers:{'Authorization':'Bearer '+cfg.apiKey},body:fd,
     });
     if(res.status===429 && attempt<2){
@@ -1699,7 +1700,7 @@ async function flushSeg(){
       return transcribe(attempt+1);
     }
     if(!res.ok){
-      if(res.status===401) toast('Groq APIキーが無効です','bad');
+      if(res.status===401) toast('OpenAI APIキーが無効です','bad');
       else if(res.status===429) toast('混雑のためスキップしました','bad');
       else toast('音声認識エラー '+res.status,'bad');
       return null;
