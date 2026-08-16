@@ -820,7 +820,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 10; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 11; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -902,13 +902,15 @@ function numOr(v, def, min, max) {
   if (!isFinite(n) || n < min || n > max) return def;
   return n;
 }
-const cfg = Object.assign({}, DEF_CFG, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
+const savedCfg = JSON.parse(localStorage.getItem(LS_CFG)||'{}');
+const cfg = Object.assign({}, DEF_CFG, savedCfg);
 // 既に壊れた値が保存されている端末を自動修復する
 cfg.silenceMs = numOr(cfg.silenceMs, DEF_CFG.silenceMs, 200, 5000);
 cfg.volThr    = numOr(cfg.volThr,    DEF_CFG.volThr,    1,   100);
 // volThr の意味を「絶対音量」から「周囲の騒音＋余裕幅」に変更したため、
 // 旧仕様で保存された値は互換性がない。APIキー等は保持したまま一度だけ移行する。
-if (cfg.volThrMode !== 'floor') { cfg.volThr = DEF_CFG.volThr; cfg.volThrMode = 'floor'; saveCfg(); }
+// 判定対象は保存済みデータ。cfg 側を見ると既定値に隠れて移行が発動しない。
+if (savedCfg.volThrMode !== 'floor') { cfg.volThr = DEF_CFG.volThr; cfg.volThrMode = 'floor'; saveCfg(); }
 if (!cfg.model) cfg.model = DEF_CFG.model;
 if (!cfg.lang && cfg.lang !== '') cfg.lang = DEF_CFG.lang;
 
@@ -1501,9 +1503,13 @@ function localParse(raw) {
   }
 
   // 種目名の抽出
+  // Whisperは語彙ヒントを与えると「インクライン・ダンベルプレス」のように
+  // 中黒や句読点を挿入することがあるため、記号と空白を除去してから照合する。
+  const tm = t.replace(/[・、。･\s]/g, '');
   let exercise = null;
   for (const term of knownExerciseTerms()) {
-    if (term && t.includes(term)) { exercise = term; break; }
+    const k = term.replace(/[・、。･\s]/g, '');
+    if (k && tm.includes(k)) { exercise = term; break; }
   }
 
   // 数字が一切なく制御発話でもない＝雑談。API を呼ばずに捨てる
@@ -1775,6 +1781,20 @@ const MIN_SEG_SEC = 0.4;
 // 1発話がこれを超えたら強制送信する（無限にバッファが伸びるのを防ぐ安全弁）
 const MAX_SEG_SEC = 12;
 
+// Whisperに渡す語彙ヒント（whisper-1は224トークンまで考慮する）
+function whisperPrompt(){
+  const terms=[];
+  for(const kws of Object.values(MUSCLE_KW)) terms.push(...kws);
+  (cfg.aliases||'').split(/[\n,]/).forEach(line=>{
+    const [a,b]=line.split('=').map(x=>(x||'').trim());
+    if(b) terms.push(b); else if(a) terms.push(a);
+  });
+  const uniq=[...new Set(terms)].slice(0,60);
+  return '筋力トレーニングの記録。種目名・重量・回数を短く話す。'
+       + '例：ベンチプレス80キロ10回。スクワット100キロ5回。'
+       + '種目名：'+uniq.join('、')+'。';
+}
+
 async function flushSeg(){
   const sr = (audioCtx && audioCtx.sampleRate) ? audioCtx.sampleRate : 44100;
   if(segBuffer.length < sr * MIN_SEG_SEC){
@@ -1791,6 +1811,10 @@ async function flushSeg(){
     fd.append('file',blob,'audio.wav');
     fd.append('model',cfg.model);
     fd.append('response_format','text');
+    fd.append('temperature','0');
+    // 語彙ヒント：種目名は一般語彙から外れるため、文脈を与えないと
+    // 「ベンチプレス」等が別の語に化ける。既知の種目名を辞書として渡す。
+    fd.append('prompt', whisperPrompt());
     if(cfg.lang) fd.append('language',cfg.lang);
     const res=await fetch('https://api.openai.com/v1/audio/transcriptions',{
       method:'POST',headers:{'Authorization':'Bearer '+cfg.apiKey},body:fd,
