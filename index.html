@@ -504,6 +504,14 @@ input, select, textarea { font-family: inherit; }
   color: var(--fg); border: 1px solid var(--border2); border-radius: var(--r-sm);
   font-size: 15px; resize: vertical; min-height: 72px;
 }
+/* 診断ログ。折り返さず横スクロールさせて、1件1行の対応を崩さない */
+.diag-log {
+  width: 100%; max-height: 200px; overflow: auto; margin: 0;
+  padding: 12px 14px; background: var(--surface);
+  border: 1px solid var(--border2); border-radius: var(--r-sm);
+  font-family: var(--mono); font-size: 11px; line-height: 1.7;
+  color: var(--fg2); white-space: pre; -webkit-overflow-scrolling: touch;
+}
 .form-row { display: flex; gap: 10px; }
 .form-row .form-group { flex: 1; }
 .form-picker {
@@ -889,6 +897,15 @@ input, select, textarea { font-family: inherit; }
     <label class="form-label">種目略語マッピング</label>
     <textarea class="form-textarea" id="aliases" placeholder="インクラ=インクラインベンチプレス&#10;PD=トライセプスプレスダウン"></textarea>
   </div>
+  <div class="form-group">
+    <label class="form-label">診断ログ（直近12件）</label>
+    <pre class="diag-log" id="diagLog">（まだありません）</pre>
+    <div class="form-help">
+      「録音◯KB → Whisper→「…」 → 解析→…」の並びで、どこで落ちたか分かります。
+      録音のKBが小さければ録音側、テキストが出ているのに記録されないなら解析側です。
+    </div>
+    <button class="btn-secondary" id="copyDiag" style="margin-top:8px;">ログをコピー</button>
+  </div>
   <button class="btn-primary" id="saveSettings">保存</button>
   <button class="btn-secondary" id="closeSettings">閉じる</button>
   <button class="btn-danger" id="resetAll">全データをリセット</button>
@@ -937,7 +954,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 16; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 17; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -1752,8 +1769,15 @@ function fillSettingsForm() {
   document.getElementById('lang').value=cfg.lang;
   document.getElementById('debugMode').value=cfg.debugMode||'off';
   document.getElementById('aliases').value=cfg.aliases;
+  document.getElementById('diagLog').textContent = recLog.join('\n') || '（まだありません）';
 }
 function openSettings() { fillSettingsForm(); openSheet('sheetSettings'); }
+
+document.getElementById('copyDiag').onclick = async () => {
+  const txt = recLog.join('\n') || '（ログなし）';
+  try { await navigator.clipboard.writeText(txt); toast('ログをコピーしました','good'); }
+  catch(e){ toast('コピーできませんでした','bad'); }
+};
 
 document.getElementById('settingsBtn').onclick = openSettings;
 document.getElementById('closeSettings').onclick = closeSheets;
@@ -2304,7 +2328,19 @@ let pttActive=false;   // 「タップして話す」で録音中か
 // onaudioprocess が一度も発火せず、無音のまま「録音中」に見える。
 // タップして話す方式では音量解析が要らないので、録音は MediaRecorder に任せる。
 // ブラウザが直接ストリームを掴むため、AudioContextの状態に左右されない。
-let mediaRec=null, recChunks=[], pttMaxTimer=null;
+let mediaRec=null, recChunks=[], pttMaxTimer=null, pttStartAt=0;
+
+// ── 診断ログ ──
+// 音声まわりは端末でしか再現しないので、その場で原因を読み取れるようにする。
+// 「録音バイト数 → Whisperの生テキスト → 解析結果」が並べば、
+// どの段で落ちたかが一意に決まる。
+const recLog=[];
+function logEvent(msg){
+  recLog.unshift(new Date().toLocaleTimeString('ja-JP',{hour12:false})+'  '+msg);
+  if(recLog.length>12) recLog.length=12;
+  const el=document.getElementById('diagLog');
+  if(el) el.textContent = recLog.join('\n') || '（まだありません）';
+}
 function pickRecorderMime(){
   if(!window.MediaRecorder) return null;
   // iOS Safari は webm を作れない。mp4 を最優先で見る。
@@ -2506,9 +2542,9 @@ async function startCapture(){
       if(!st) return;
       // タップして話す方式では音量しきい値は無関係。録れている「量」だけが意味を持つ。
       if(cfg.micMode==='ptt'){
-        const kb = recChunks.reduce((a,c)=>a+c.size,0)/1024;
-        st.textContent = (pttActive?'●録音中 ':'待機 ')
-          + (mediaRec ? `${kb.toFixed(0)}KB` : `buf${dbgBuf.toFixed(1)}s`)
+        const sec = (pttActive && pttStartAt) ? ((Date.now()-pttStartAt)/1000).toFixed(1)+'s' : '';
+        st.textContent = (pttActive?'●録音中 '+sec:'待機')
+          + (mediaRec!==null||!pttActive ? '' : ' (旧方式)')
           + ` vol${dbgVol.toFixed(0)} [b${BUILD}]`;
         return;
       }
@@ -2596,6 +2632,7 @@ async function sendAudio(blob, filename){
   // 無音や極小データを送ってもWhisperは空文字を返すだけで、原因が見えない。
   // 何バイト録れたのかを先に見せる：ここが小さければ録音側、十分なら認識側の問題。
   if(blob.size < 2000){
+    logEvent(`送信中止 ${blob.size}バイト（録音できていない）`);
     setTranscript(`録音できていません（${blob.size}バイト）`, false);
     return;
   }
@@ -2622,6 +2659,7 @@ async function sendAudio(blob, filename){
         try { const j=JSON.parse(body); code=j.error?.code||''; msg=j.error?.message||''; }
         catch(_) { msg = body.slice(0,120); }
       } catch(_) {}
+      logEvent(`API ${res.status} ${code||''} ${msg||''}`.trim());
 
       // 短すぎる音声は物音由来。ユーザーに見せる価値がないので黙って捨てる
       if(res.status===400 && code==='audio_too_short') return null;
@@ -2650,18 +2688,24 @@ async function sendAudio(blob, filename){
 
   let text;
   try { text = await transcribe(0); }
-  catch(e){ toast('通信エラー','bad'); return; }
+  catch(e){ logEvent('通信エラー: '+e.message); toast('通信エラー','bad'); return; }
   // 黙って捨てると「言ったのに反映されない」としか見えない。必ず結果を返す。
-  if(!text||text.length<2){ setTranscript('聞き取れませんでした',false); return; }
+  if(!text||text.length<2){
+    logEvent('Whisper→（空）音声が無音か短すぎ');
+    setTranscript('聞き取れませんでした',false); return;
+  }
+  logEvent('Whisper→「'+text+'」');
   setTranscript(text,false);
   let parsed;
   try{ parsed=await parseUtterance(text); }
-  catch(e){ toast('解析できませんでした','bad'); return; }
+  catch(e){ logEvent('解析エラー: '+e.message); toast('解析できませんでした','bad'); return; }
   if(!parsed){
+    logEvent('解析→ 記録対象なし');
     // 数字を含む発話は記録するつもりだったはず。無反応で終わらせない。
     if(/\d/.test(text)) setTranscript(text+' → 記録できず',false);
     return;
   }
+  logEvent('解析→ '+JSON.stringify({e:parsed.exercise,w:parsed.weight,r:parsed.reps,s:parsed.seconds}));
   if(parsed.exercise) parsed.exercise=applyAlias(parsed.exercise);
 
   // 「取り消し」「今の消して」＝直前の記録を削除
@@ -2836,9 +2880,11 @@ function startTalking(){
                       : new MediaRecorder(mediaStream);
       mediaRec.ondataavailable = ev => { if(ev.data && ev.data.size) recChunks.push(ev.data); };
       mediaRec.onerror = ev => { setTranscript('録音エラー：'+(ev.error&&ev.error.name||'不明'), false); };
-      // 250msごとにチャンクを受け取る。溜まったKB数がそのまま
-      // 「本当に録れているか」の証拠になり、状態表示に出せる。
-      mediaRec.start(250);
+      // timeslice は渡さない。Safari の mp4 出力を分割させると、
+      // 連結したファイルが壊れて Whisper が空文字を返すことがある。
+      // 録れている証拠は KB のライブ表示ではなく、停止時の実サイズで示す。
+      mediaRec.start();
+      pttStartAt = Date.now();
       dbg('MediaRecorder '+(mediaRec.mimeType||'既定'));
     } catch(e){
       // 失敗したら ScriptProcessor 経由（segBuffer）にそのまま落ちる
@@ -2862,7 +2908,10 @@ function stopTalking(){
     // stop() の後に最後のチャンクが届くので、必ず onstop まで待ってから送る
     rec.onstop = () => {
       const type = rec.mimeType || 'audio/mp4';
-      sendAudio(new Blob(recChunks,{type}), mimeToFilename(type));
+      const blob = new Blob(recChunks,{type});
+      const sec = pttStartAt ? ((Date.now()-pttStartAt)/1000).toFixed(1) : '?';
+      logEvent(`録音 ${sec}秒 / ${(blob.size/1024).toFixed(0)}KB / ${type}`);
+      sendAudio(blob, mimeToFilename(type));
       recChunks = [];
     };
     try { rec.stop(); } catch(e){ setTranscript('録音停止に失敗しました',false); }
