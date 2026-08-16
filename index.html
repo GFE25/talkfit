@@ -328,21 +328,33 @@ input, select, textarea { font-family: inherit; }
   border-bottom: 1px solid var(--border); gap: 10px;
 }
 .set-row:last-child { border-bottom: none; }
-.set-name-wrap { flex: 1; }
-.set-name { font-size: 15px; font-weight: 500; letter-spacing: -0.3px; }
-.set-time { font-family: var(--mono); font-size: 11px; color: var(--fg3); display: block; margin-top: 2px; }
-.set-nums { display: flex; align-items: baseline; gap: 6px; }
-.set-weight { font-family: var(--mono); font-size: 14px; font-weight: 500; }
-.set-reps { font-family: var(--mono); font-size: 13px; color: var(--fg2); }
+/* セット行は「何セット目 / 内容 / 時刻」の3列。視線が縦に揃うよう番号幅を固定する */
+.set-idx {
+  flex-shrink: 0; width: 20px; text-align: center;
+  font-family: var(--mono); font-size: 11px; color: var(--fg3);
+}
+.set-val { flex: 1; font-family: var(--mono); font-size: 15px; font-weight: 500; letter-spacing: -0.2px; }
+.set-time { flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--fg3); }
 .set-delete { padding: 4px; color: var(--fg3); font-size: 15px; }
 .set-delete:active { color: var(--red); }
+/* 現在の種目バー */
+.now-bar {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin: 0 0 4px; padding: 11px 14px; border-radius: var(--r-sm);
+  background: var(--surface); border: 1px solid var(--border2); text-align: left;
+}
+.now-bar:active { opacity: 0.7; }
+.now-dot { width: 8px; height: 8px; border-radius: 100px; flex-shrink: 0; }
+.now-ex { font-size: 14px; font-weight: 600; letter-spacing: -0.2px; }
+.now-sub { font-family: var(--mono); font-size: 12px; color: var(--fg3); flex: 1; }
+.now-edit { font-size: 12px; color: var(--accent); flex-shrink: 0; }
 .set-group { margin-bottom: 14px; }
 .set-group-head {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 8px; padding: 6px 0 2px;
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 0 2px;
 }
+.set-group-dot { width: 7px; height: 7px; border-radius: 100px; flex-shrink: 0; align-self: center; }
 .set-group-name { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
-.set-group-meta { font-family: var(--mono); font-size: 11px; color: var(--fg3); }
+.set-group-meta { font-family: var(--mono); font-size: 11px; color: var(--fg3); margin-left: auto; }
 .set-editable { cursor: pointer; }
 .set-editable:active { background: var(--border); }
 .sets-empty { text-align: center; padding: 28px 0; color: var(--fg3); font-size: 14px; line-height: 1.9; }
@@ -377,6 +389,10 @@ input, select, textarea { font-family: inherit; }
 .muscle-track { height: 4px; background: var(--surface2); border-radius: 100px; overflow: hidden; }
 .muscle-fill { height: 100%; border-radius: 100px; transition: width 1.1s cubic-bezier(0.4,0,0.2,1); }
 .body-empty { color: var(--fg3); font-size: 12px; text-align: center; padding: 16px 0; }
+.mgroup { display: flex; flex-direction: column; gap: 5px; }
+.msub-wrap { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 1px; }
+.msub { font-size: 10.5px; color: var(--fg3); display: inline-flex; align-items: center; gap: 4px; }
+.msub i { width: 5px; height: 5px; border-radius: 100px; opacity: 0.6; display: inline-block; }
 
 /* PR Card */
 .pr-card {
@@ -471,6 +487,40 @@ input, select, textarea { font-family: inherit; }
   color: var(--fg); border: 1px solid var(--border2); border-radius: var(--r-sm);
   font-size: 15px; resize: vertical; min-height: 72px;
 }
+.form-row { display: flex; gap: 10px; }
+.form-row .form-group { flex: 1; }
+.form-picker {
+  width: 100%; padding: 14px 16px; background: var(--surface);
+  color: var(--fg); border: 1px solid var(--border2); border-radius: var(--r-sm);
+  font-size: 16px; text-align: left; display: flex; align-items: center;
+  justify-content: space-between; gap: 8px;
+}
+.form-picker:active { border-color: var(--accent); }
+.form-picker-chev { color: var(--fg3); font-size: 20px; line-height: 1; }
+/* 種目ピッカー */
+.sheet-tall { height: 88dvh; display: none; flex-direction: column; }
+.sheet-tall.on { display: flex; }
+.pk-chips { display: flex; gap: 6px; overflow-x: auto; padding: 12px 0 4px; flex-shrink: 0; }
+.pk-chips::-webkit-scrollbar { display: none; }
+.pk-chip {
+  flex-shrink: 0; padding: 7px 13px; border-radius: 100px; font-size: 13px;
+  background: var(--surface); color: var(--fg2); border: 1px solid var(--border);
+}
+.pk-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pk-list { flex: 1; overflow-y: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
+.pk-head {
+  font-size: 11px; font-weight: 600; color: var(--fg3); letter-spacing: 0.08em;
+  padding: 14px 0 6px; position: sticky; top: 0; background: #161618;
+}
+.pk-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 13px 4px; border-bottom: 1px solid var(--border); text-align: left;
+}
+.pk-item:active { background: var(--surface); }
+.pk-dot { width: 7px; height: 7px; border-radius: 100px; flex-shrink: 0; }
+.pk-name { flex: 1; font-size: 15px; color: var(--fg); }
+.pk-meta { font-size: 11px; color: var(--fg3); font-family: var(--mono); }
+.pk-empty { text-align: center; color: var(--fg3); font-size: 13px; padding: 32px 0; }
 .form-help { font-size: 12px; color: var(--fg3); line-height: 1.5; margin-top: 6px; }
 .form-help a { color: var(--accent); text-decoration: none; }
 .btn-primary {
@@ -581,13 +631,21 @@ input, select, textarea { font-family: inherit; }
         <div class="mic-status" id="micStatus"></div>
       </div>
 
+      <!-- いま何の種目として記録されるか。引き継ぎが効いていることを見せる -->
+      <button class="now-bar" id="nowBar" style="display:none">
+        <span class="now-dot" id="nowDot"></span>
+        <span class="now-ex" id="nowEx"></span>
+        <span class="now-sub" id="nowSub"></span>
+        <span class="now-edit">変更</span>
+      </button>
+
       <div class="sets-section">
         <div class="sets-header">
-          <div class="sets-title">直近の記録</div>
-          <button class="add-btn" id="manualBtn" aria-label="手動入力">+</button>
+          <div class="sets-title">今日の記録</div>
+          <button class="add-btn" id="manualBtn" aria-label="手動で追加">+</button>
         </div>
         <div id="setsBody">
-          <div class="sets-empty" id="setsEmpty">まだ記録なし<br><span style="font-size:12px;color:var(--fg3);">声で話すか ＋ から追加</span></div>
+          <div class="sets-empty" id="setsEmpty">まだ記録なし<br><span style="font-size:12px;color:var(--fg3);">「ベンチプレス 80キロ 10回」<br>2セット目からは「10回」だけでOK<br>言い間違えたら「違う、8回」／「取り消し」</span></div>
         </div>
       </div>
 
@@ -639,12 +697,15 @@ input, select, textarea { font-family: inherit; }
               <rect x="44" y="29" width="12" height="9" rx="3" fill="#2C2C2E"/>
               <ellipse cx="23" cy="51" rx="13" ry="9.5" fill="#2C2C2E" id="bm-shoulder-l" class="bm" data-g="shoulder"/>
               <ellipse cx="77" cy="51" rx="13" ry="9.5" fill="#2C2C2E" id="bm-shoulder-r" class="bm" data-g="shoulder"/>
-              <path d="M34 43 Q50 39 66 43 L67 82 Q50 86 33 82 Z" fill="#2C2C2E" id="bm-chest" class="bm" data-g="chest"/>
+              <path d="M33 42 Q50 36 67 42 L64 47 Q50 43 36 47 Z" fill="#2C2C2E" id="bm-traps" class="bm" data-g="back"/>
+              <path d="M34 47 Q50 43 66 47 L67 82 Q50 86 33 82 Z" fill="#2C2C2E" id="bm-chest" class="bm" data-g="chest"/>
               <rect x="12" y="57" width="14" height="40" rx="7" fill="#2C2C2E" id="bm-arm-l" class="bm" data-g="arm"/>
               <rect x="74" y="57" width="14" height="40" rx="7" fill="#2C2C2E" id="bm-arm-r" class="bm" data-g="arm"/>
               <rect x="13" y="99" width="12" height="30" rx="6" fill="#2C2C2E" id="bm-fa-l" class="bm" data-g="arm"/>
               <rect x="75" y="99" width="12" height="30" rx="6" fill="#2C2C2E" id="bm-fa-r" class="bm" data-g="arm"/>
-              <path d="M35 82 Q50 86 65 82 L63 116 Q50 120 37 116 Z" fill="#2C2C2E" id="bm-core" class="bm" data-g="core"/>
+              <path d="M38 83 Q50 86 62 83 L61 116 Q50 120 39 116 Z" fill="#2C2C2E" id="bm-core" class="bm" data-g="core"/>
+              <path d="M34 82 L38 83 L39 115 L35 113 Z" fill="#2C2C2E" id="bm-oblique-l" class="bm" data-g="core"/>
+              <path d="M66 82 L62 83 L61 115 L65 113 Z" fill="#2C2C2E" id="bm-oblique-r" class="bm" data-g="core"/>
               <path d="M33 114 Q50 118 67 114 L68 132 Q50 136 32 132 Z" fill="#2C2C2E" id="bm-hip" class="bm" data-g="leg"/>
               <path d="M33 130 L50 128 L51 178 L29 178 Z" fill="#2C2C2E" id="bm-quad-l" class="bm" data-g="leg"/>
               <path d="M50 128 L67 130 L71 178 L49 178 Z" fill="#2C2C2E" id="bm-quad-r" class="bm" data-g="leg"/>
@@ -804,30 +865,42 @@ input, select, textarea { font-family: inherit; }
   <button class="btn-danger" id="resetAll">全データをリセット</button>
 </div>
 
-<!-- Manual Add Sheet -->
+<!-- 記録の追加・修正シート -->
 <div class="sheet" id="sheetManual">
   <div class="sheet-handle"></div>
-  <h3 id="mTitle">手動入力</h3>
+  <h3 id="mTitle">記録を追加</h3>
   <div class="form-group">
     <label class="form-label">種目</label>
-    <input class="form-input" id="mEx" placeholder="ベンチプレス" list="exList"/>
-    <datalist id="exList"></datalist>
+    <button class="form-picker" id="mExBtn"><span id="mExLabel">選択してください</span><span class="form-picker-chev">›</span></button>
+    <input id="mEx" type="hidden"/>
   </div>
-  <div class="form-group">
-    <label class="form-label">重量（kg）<span style="opacity:.5">自重種目は空欄</span></label>
-    <input class="form-input" id="mW" type="number" inputmode="decimal" placeholder="80"/>
+  <div class="form-row" id="mFieldsReps">
+    <div class="form-group" id="mWGroup">
+      <label class="form-label">重量 kg</label>
+      <input class="form-input" id="mW" type="number" inputmode="decimal" placeholder="80"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">回数</label>
+      <input class="form-input" id="mR" type="number" inputmode="numeric" placeholder="10"/>
+    </div>
   </div>
-  <div class="form-group">
-    <label class="form-label">回数</label>
-    <input class="form-input" id="mR" type="number" inputmode="numeric" placeholder="10"/>
-  </div>
-  <div class="form-group">
-    <label class="form-label">秒数（プランク等）</label>
+  <div class="form-group" id="mFieldsTime">
+    <label class="form-label">秒数</label>
     <input class="form-input" id="mS" type="number" inputmode="numeric" placeholder="60"/>
   </div>
   <button class="btn-primary" id="mSave">追加</button>
-  <button class="btn-secondary" id="mDelete" style="display:none;color:#FF6B6B">この記録を削除</button>
+  <button class="btn-secondary" id="mDelete" style="display:none;color:var(--red)">この記録を削除</button>
   <button class="btn-secondary" id="mClose">キャンセル</button>
+</div>
+
+<!-- 種目を選ぶシート -->
+<div class="sheet sheet-tall" id="sheetPicker">
+  <div class="sheet-handle"></div>
+  <h3>種目を選ぶ</h3>
+  <input class="form-input" id="pkSearch" placeholder="検索（ベンチ / 胸 / むね…）" autocomplete="off"/>
+  <div class="pk-chips" id="pkChips"></div>
+  <div class="pk-list" id="pkList"></div>
+  <button class="btn-secondary" id="pkClose">キャンセル</button>
 </div>
 
 <!-- Toast -->
@@ -835,70 +908,175 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 12; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 13; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
 
-// ── Muscle Groups ──
+// ── 部位（大分類）──
 const GROUPS = {
   chest:    { label:'胸',   color:'#4F7FFF', parts:['bm-chest'] },
   back:     { label:'背中', color:'#FF9F0A', parts:['bm-back'] },
   shoulder: { label:'肩',   color:'#9B7FFF', parts:['bm-shoulder-l','bm-shoulder-r'] },
   arm:      { label:'腕',   color:'#30D158', parts:['bm-arm-l','bm-arm-r','bm-fa-l','bm-fa-r'] },
   leg:      { label:'脚',   color:'#0ACDFF', parts:['bm-hip','bm-quad-l','bm-quad-r','bm-calf-l','bm-calf-r'] },
-  core:     { label:'腹筋', color:'#FF6B6B', parts:['bm-core'] },
+  core:     { label:'体幹', color:'#FF6B6B', parts:['bm-core'] },
+  cardio:   { label:'有酸素', color:'#FFD60A', parts:[] },
+};
+
+// ── 筋肉（細分類）──
+// 「胸」ではなく「大胸筋 上部」の粒度で記録する。
+// g=大分類 / parts=ボディマップで光らせるSVG要素
+const MUSCLES = {
+  chest_upper:{label:'大胸筋 上部', g:'chest', parts:['bm-chest']},
+  chest_mid:  {label:'大胸筋 中部', g:'chest', parts:['bm-chest']},
+  chest_lower:{label:'大胸筋 下部', g:'chest', parts:['bm-chest']},
+
+  lats:       {label:'広背筋',      g:'back', parts:['bm-back']},
+  traps:      {label:'僧帽筋',      g:'back', parts:['bm-traps']},
+  rhomboid:   {label:'背中中部',    g:'back', parts:['bm-back','bm-traps']},
+  erector:    {label:'脊柱起立筋',  g:'back', parts:['bm-back']},
+
+  delt_front: {label:'三角筋 前部', g:'shoulder', parts:['bm-shoulder-l','bm-shoulder-r']},
+  delt_side:  {label:'三角筋 中部', g:'shoulder', parts:['bm-shoulder-l','bm-shoulder-r']},
+  delt_rear:  {label:'三角筋 後部', g:'shoulder', parts:['bm-shoulder-l','bm-shoulder-r']},
+
+  biceps:     {label:'上腕二頭筋',  g:'arm', parts:['bm-arm-l','bm-arm-r']},
+  triceps:    {label:'上腕三頭筋',  g:'arm', parts:['bm-arm-l','bm-arm-r']},
+  forearm:    {label:'前腕',        g:'arm', parts:['bm-fa-l','bm-fa-r']},
+
+  quads:      {label:'大腿四頭筋',  g:'leg', parts:['bm-quad-l','bm-quad-r']},
+  hamstrings: {label:'ハムストリングス', g:'leg', parts:['bm-quad-l','bm-quad-r']},
+  glutes:     {label:'臀筋',        g:'leg', parts:['bm-hip']},
+  adductor:   {label:'内転筋',      g:'leg', parts:['bm-quad-l','bm-quad-r']},
+  calves:     {label:'ふくらはぎ',  g:'leg', parts:['bm-calf-l','bm-calf-r']},
+
+  abs:        {label:'腹直筋',      g:'core', parts:['bm-core']},
+  oblique:    {label:'腹斜筋',      g:'core', parts:['bm-oblique-l','bm-oblique-r']},
+  hipflexor:  {label:'腸腰筋',      g:'core', parts:['bm-core','bm-hip']},
+
+  cardio:     {label:'有酸素',      g:'cardio', parts:[]},
 };
 
 // ── 種目辞書 ──
-// n=正式名 / a=言い換え（人によって呼び方が違う） / m=部位
+// n=正式名 / a=言い換え（人によって呼び方が違う） / m=主働筋 / m2=補助的に効く筋肉
 // bw=自重（重量を言わない） / time=時間計測（回数ではなく秒数）
+// 注：照合は「長い語が勝つ」ので、複合名（インクラインダンベルプレス）は
+// 単独名（ダンベルプレス）より先に当たる。別名を足すときは短すぎる語に注意。
 const EX_DEF = [
-  // 胸
-  {n:'ベンチプレス', a:['ベンチ','ベンプレ','フラットベンチ'], m:'chest'},
-  {n:'インクラインベンチプレス', a:['インクライン','インクラインプレス'], m:'chest'},
-  // 複合名は単独名より長いので、長い語優先の照合で先に当たる（「ダンベルプレス」に吸われない）
-  {n:'インクラインダンベルプレス', a:['インクラインダンベル'], m:'chest'},
-  {n:'ダンベルフライ', a:['フライ'], m:'chest'},
-  {n:'ダンベルプレス', a:['ダンベルベンチ'], m:'chest'},
-  {n:'チェストプレス', a:['チェスト'], m:'chest'},
-  {n:'ペックデック', a:['ペックフライ'], m:'chest'},
-  {n:'腕立て伏せ', a:['腕立て','プッシュアップ'], m:'chest', bw:true},
-  {n:'ディップス', a:['ディップ'], m:'chest', bw:true},
-  // 背中
-  {n:'ラットプルダウン', a:['ラットプル','プルダウン'], m:'back'},
-  {n:'デッドリフト', a:['デッド'], m:'back'},
-  {n:'バーベルロー', a:['ベントオーバーロー','ベントロー'], m:'back'},
-  {n:'ケーブルロウ', a:['シーテッドロー','ローイング','ロウイング'], m:'back'},
-  {n:'懸垂', a:['チンアップ','プルアップ','けんすい'], m:'back', bw:true},
-  {n:'フェイスプル', a:[], m:'back'},
-  // 肩
-  {n:'ショルダープレス', a:['ショルダー','ミリタリープレス','ミリタリー'], m:'shoulder'},
-  {n:'サイドレイズ', a:['サイド','ラテラルレイズ'], m:'shoulder'},
-  {n:'フロントレイズ', a:['フロント'], m:'shoulder'},
-  {n:'リアレイズ', a:['リア','リアデルト'], m:'shoulder'},
-  {n:'シュラッグ', a:['僧帽筋'], m:'shoulder'},
-  // 腕
-  {n:'アームカール', a:['カール','バイセップカール','二頭','二頭筋','上腕二頭筋','ダンベルカール','バーベルカール'], m:'arm'},
-  {n:'ハンマーカール', a:['ハンマー'], m:'arm'},
-  {n:'トライセプスプレスダウン', a:['プレスダウン','プッシュダウン','三頭','三頭筋','上腕三頭筋','トライセプス'], m:'arm'},
-  {n:'スカルクラッシャー', a:['フレンチプレス'], m:'arm'},
-  {n:'キックバック', a:[], m:'arm'},
-  // 脚
-  {n:'スクワット', a:['スクワ','バーベルスクワット'], m:'leg'},
-  {n:'レッグプレス', a:['レッグ'], m:'leg'},
-  {n:'レッグカール', a:['ハムストリング','ハムスト'], m:'leg'},
-  {n:'レッグエクステンション', a:['エクステンション','大腿四頭筋'], m:'leg'},
-  {n:'カーフレイズ', a:['カーフ','ふくらはぎ'], m:'leg'},
-  {n:'ランジ', a:['ブルガリアンスクワット','ブルガリアン'], m:'leg'},
-  {n:'ヒップスラスト', a:['ヒップ','臀筋','お尻'], m:'leg'},
-  // 体幹
-  {n:'腹筋', a:['クランチ','シットアップ','アブ'], m:'core', bw:true},
-  {n:'プランク', a:['フロントブリッジ'], m:'core', bw:true, time:true},
-  {n:'サイドプランク', a:[], m:'core', bw:true, time:true},
-  {n:'アブローラー', a:['腹筋ローラー','ローラー'], m:'core', bw:true},
-  {n:'レッグレイズ', a:['足上げ'], m:'core', bw:true},
-  {n:'バックエクステンション', a:['背筋'], m:'core', bw:true},
+  // ── 胸 ──
+  {n:'ベンチプレス', a:['ベンチ','ベンプレ','フラットベンチ','バーベルベンチプレス'], m:'chest_mid', m2:['delt_front','triceps']},
+  {n:'インクラインベンチプレス', a:['インクライン','インクラインプレス'], m:'chest_upper', m2:['delt_front','triceps']},
+  {n:'インクラインダンベルプレス', a:['インクラインダンベル'], m:'chest_upper', m2:['delt_front']},
+  {n:'デクラインベンチプレス', a:['デクライン','デクラインプレス'], m:'chest_lower', m2:['triceps']},
+  {n:'ダンベルプレス', a:['ダンベルベンチ','ダンベルベンチプレス'], m:'chest_mid', m2:['delt_front','triceps']},
+  {n:'ダンベルフライ', a:['フライ'], m:'chest_mid'},
+  {n:'インクラインダンベルフライ', a:['インクラインフライ'], m:'chest_upper'},
+  {n:'ケーブルフライ', a:['ケーブルクロスオーバー','クロスオーバー'], m:'chest_mid'},
+  {n:'ペックデックフライ', a:['ペックデック','ペックフライ','バタフライ'], m:'chest_mid'},
+  {n:'チェストプレス', a:['チェスト','マシンチェストプレス'], m:'chest_mid', m2:['triceps']},
+  {n:'スミスマシンベンチプレス', a:['スミスベンチ'], m:'chest_mid', m2:['triceps']},
+  {n:'フロアプレス', a:[], m:'chest_mid', m2:['triceps']},
+  {n:'プルオーバー', a:['ダンベルプルオーバー'], m:'chest_lower', m2:['lats']},
+  {n:'腕立て伏せ', a:['腕立て','プッシュアップ','うでたて'], m:'chest_mid', m2:['triceps','delt_front'], bw:true},
+  {n:'ワイドプッシュアップ', a:['ワイド腕立て'], m:'chest_mid', bw:true},
+  {n:'ナロープッシュアップ', a:['ナロー腕立て','ダイヤモンドプッシュアップ'], m:'triceps', m2:['chest_mid'], bw:true},
+  {n:'ディップス', a:['ディップ'], m:'chest_lower', m2:['triceps'], bw:true},
+
+  // ── 背中 ──
+  {n:'デッドリフト', a:['デッド'], m:'erector', m2:['glutes','hamstrings','lats','traps']},
+  {n:'ルーマニアンデッドリフト', a:['ルーマニアン'], m:'hamstrings', m2:['glutes','erector']},
+  {n:'スモウデッドリフト', a:['スモウデッド','相撲デッドリフト'], m:'glutes', m2:['quads','erector']},
+  {n:'スティフレッグデッドリフト', a:['スティフレッグ'], m:'hamstrings', m2:['erector']},
+  {n:'ラットプルダウン', a:['ラットプル','プルダウン'], m:'lats', m2:['biceps']},
+  {n:'ビハインドネックプルダウン', a:['ビハインドネック'], m:'lats'},
+  {n:'ストレートアームプルダウン', a:['ストレートアーム'], m:'lats'},
+  {n:'懸垂', a:['チンニング','プルアップ','けんすい'], m:'lats', m2:['biceps'], bw:true},
+  {n:'チンアップ', a:['逆手懸垂'], m:'lats', m2:['biceps'], bw:true},
+  {n:'バーベルロー', a:['ベントオーバーロー','ベントロー','バーベルローイング'], m:'rhomboid', m2:['lats','biceps']},
+  {n:'ダンベルロー', a:['ワンハンドロー','ワンハンドダンベルロー'], m:'lats', m2:['rhomboid','biceps']},
+  {n:'ケーブルロウ', a:['シーテッドロー','ローイング','ロウイング','シーテッドロウ'], m:'rhomboid', m2:['lats','biceps']},
+  {n:'Tバーロー', a:['ティーバーロー'], m:'rhomboid', m2:['lats']},
+  {n:'マシンロー', a:['マシンロウ'], m:'rhomboid', m2:['lats']},
+  {n:'インバーテッドロー', a:['斜め懸垂'], m:'rhomboid', bw:true},
+  {n:'フェイスプル', a:[], m:'delt_rear', m2:['rhomboid','traps']},
+  {n:'シュラッグ', a:['僧帽筋','ダンベルシュラッグ'], m:'traps'},
+  {n:'バックエクステンション', a:['背筋','ハイパーエクステンション'], m:'erector', bw:true},
+  {n:'グッドモーニング', a:[], m:'hamstrings', m2:['erector']},
+
+  // ── 肩 ──
+  {n:'ショルダープレス', a:['ショルダー','ミリタリープレス','ミリタリー','オーバーヘッドプレス'], m:'delt_front', m2:['triceps']},
+  {n:'ダンベルショルダープレス', a:['ダンベルショルダー'], m:'delt_front', m2:['triceps']},
+  {n:'アーノルドプレス', a:['アーノルド'], m:'delt_front', m2:['delt_side']},
+  {n:'サイドレイズ', a:['サイド','ラテラルレイズ','ダンベルサイドレイズ'], m:'delt_side'},
+  {n:'ケーブルサイドレイズ', a:[], m:'delt_side'},
+  {n:'フロントレイズ', a:['フロント'], m:'delt_front'},
+  {n:'リアレイズ', a:['リア','リアデルト','リアデルトフライ'], m:'delt_rear'},
+  {n:'アップライトロー', a:['アップライト'], m:'delt_side', m2:['traps']},
+  {n:'パイクプッシュアップ', a:['パイク'], m:'delt_front', bw:true},
+
+  // ── 腕 ──
+  {n:'アームカール', a:['カール','バイセップカール','二頭','二頭筋','上腕二頭筋','バーベルカール'], m:'biceps'},
+  {n:'ダンベルカール', a:[], m:'biceps'},
+  {n:'ハンマーカール', a:['ハンマー'], m:'biceps', m2:['forearm']},
+  {n:'インクラインカール', a:[], m:'biceps'},
+  {n:'プリーチャーカール', a:['プリーチャー'], m:'biceps'},
+  {n:'コンセントレーションカール', a:['コンセントレーション'], m:'biceps'},
+  {n:'ケーブルカール', a:[], m:'biceps'},
+  {n:'リバースカール', a:[], m:'forearm', m2:['biceps']},
+  {n:'リストカール', a:['手首カール'], m:'forearm'},
+  {n:'トライセプスプレスダウン', a:['プレスダウン','プッシュダウン','三頭','三頭筋','上腕三頭筋','トライセプス'], m:'triceps'},
+  {n:'ロープトライセプスプレスダウン', a:['ロープブレスダウン','ロープ'], m:'triceps'},
+  {n:'スカルクラッシャー', a:['ライイングエクステンション'], m:'triceps'},
+  {n:'フレンチプレス', a:['オーバーヘッドエクステンション'], m:'triceps'},
+  {n:'キックバック', a:['トライセプスキックバック'], m:'triceps'},
+  {n:'ナローグリップベンチプレス', a:['ナローベンチ','ナローグリップ'], m:'triceps', m2:['chest_mid']},
+
+  // ── 脚 ──
+  {n:'スクワット', a:['スクワ','バーベルスクワット'], m:'quads', m2:['glutes','erector']},
+  {n:'フロントスクワット', a:[], m:'quads', m2:['glutes']},
+  {n:'ハックスクワット', a:['ハック'], m:'quads'},
+  {n:'ゴブレットスクワット', a:['ゴブレット'], m:'quads', m2:['glutes']},
+  {n:'スミスマシンスクワット', a:['スミススクワット'], m:'quads'},
+  {n:'シシースクワット', a:['シシー'], m:'quads', bw:true},
+  {n:'レッグプレス', a:['レッグ'], m:'quads', m2:['glutes']},
+  {n:'レッグエクステンション', a:['エクステンション','大腿四頭筋'], m:'quads'},
+  {n:'レッグカール', a:['ハムストリング','ハムスト','ライイングレッグカール'], m:'hamstrings'},
+  {n:'シーテッドレッグカール', a:[], m:'hamstrings'},
+  {n:'ランジ', a:['フロントランジ'], m:'quads', m2:['glutes']},
+  {n:'ウォーキングランジ', a:[], m:'quads', m2:['glutes']},
+  {n:'ブルガリアンスクワット', a:['ブルガリアン'], m:'glutes', m2:['quads']},
+  {n:'ステップアップ', a:[], m:'glutes', m2:['quads']},
+  {n:'ヒップスラスト', a:['ヒップ','臀筋','お尻'], m:'glutes', m2:['hamstrings']},
+  {n:'ヒップアブダクション', a:['アブダクション','外転'], m:'glutes'},
+  {n:'アダクション', a:['内転','内転筋'], m:'adductor'},
+  {n:'カーフレイズ', a:['カーフ','ふくらはぎ'], m:'calves'},
+  {n:'シーテッドカーフレイズ', a:[], m:'calves'},
+  {n:'ヒップリフト', a:['グルートブリッジ','お尻上げ'], m:'glutes', bw:true},
+
+  // ── 体幹 ──
+  {n:'腹筋', a:['クランチ','シットアップ','アブ'], m:'abs', bw:true},
+  {n:'ケーブルクランチ', a:[], m:'abs'},
+  {n:'レッグレイズ', a:['足上げ'], m:'hipflexor', m2:['abs'], bw:true},
+  {n:'ハンギングレッグレイズ', a:['ハンギング'], m:'hipflexor', m2:['abs'], bw:true},
+  {n:'アブローラー', a:['腹筋ローラー','ローラー'], m:'abs', bw:true},
+  {n:'プランク', a:['フロントブリッジ'], m:'abs', bw:true, time:true},
+  {n:'サイドプランク', a:['サイドブリッジ'], m:'oblique', bw:true, time:true},
+  {n:'ロシアンツイスト', a:['ツイスト'], m:'oblique', bw:true},
+  {n:'バイシクルクランチ', a:['バイシクル'], m:'oblique', m2:['abs'], bw:true},
+  {n:'マウンテンクライマー', a:[], m:'abs', bw:true},
+  {n:'デッドバグ', a:[], m:'abs', bw:true},
+  {n:'Vシット', a:['ブイシット'], m:'abs', bw:true},
+  {n:'トーソローテーション', a:['ツイストマシン'], m:'oblique'},
+
+  // ── 有酸素 ──
+  {n:'ランニング', a:['ラン','ジョギング','トレッドミル'], m:'cardio', bw:true, time:true},
+  {n:'ウォーキング', a:['ウォーク'], m:'cardio', bw:true, time:true},
+  {n:'エアロバイク', a:['バイク','サイクリング'], m:'cardio', bw:true, time:true},
+  {n:'ローイングマシン', a:['エルゴ','ローイングエルゴ'], m:'cardio', bw:true, time:true},
+  {n:'縄跳び', a:['なわとび','ジャンプロープ'], m:'cardio', bw:true, time:true},
+  {n:'バーピー', a:['バーピージャンプ'], m:'cardio', bw:true},
+  {n:'ステアマスター', a:['階段'], m:'cardio', bw:true, time:true},
 ];
 
 // 記号除去。ただし「22.5」の小数点だけは温存する
@@ -908,6 +1086,26 @@ const strip = s => String(s||'')
   .replace(/[・、。･,.\s!！?？「」]/g, '')
   .replace(/\u0001/g, '.');
 
+// ── 聞き間違いを吸収するための正規化 ──
+// Whisperが最も取り違えるのは濁点・半濁点・長音・小書き文字。
+// 「ペンチプレス」「ベンチプレース」「ベンチフレス」を同じ形に潰してから照合する。
+const KANA_FOLD = (() => {
+  const map = {};
+  const pairs = 'ガカギキグクゲケゴコザサジシズスゼセゾソダタヂチヅツデテドトバハビヒブフベヘボホパハピヒプフペヘポホヴウァアィイゥウェエォオッツャヤュユョヨヮワ';
+  for (let i = 0; i < pairs.length; i += 2) map[pairs[i]] = pairs[i+1];
+  return map;
+})();
+function foldKana(s) {
+  let out = '';
+  for (const ch of String(s||'')) {
+    // ひらがな → カタカナ
+    const c = (ch >= 'ぁ' && ch <= 'ゖ') ? String.fromCharCode(ch.charCodeAt(0) + 0x60) : ch;
+    if (c === 'ー') continue;                 // 長音は無視
+    out += (KANA_FOLD[c] || c);
+  }
+  return out;
+}
+
 // 照合用インデックス（長い語からマッチさせる：「ベンチプレス」＞「ベンチ」）
 const EX_INDEX = (() => {
   const list = [];
@@ -915,25 +1113,34 @@ const EX_INDEX = (() => {
     list.push({key:strip(e.n), def:e});
     for (const al of e.a) list.push({key:strip(al), def:e});
   }
+  for (const it of list) it.fold = foldKana(it.key);
   return list.sort((x,y) => y.key.length - x.key.length);
 })();
 
 const EX_BY_NAME = Object.fromEntries(EX_DEF.map(e => [e.n, e]));
 
-// 旧APIとの互換（whisperPrompt等が参照）
-const MUSCLE_KW = (() => {
-  const o = {chest:[],back:[],shoulder:[],arm:[],leg:[],core:[]};
-  for (const e of EX_DEF) { o[e.m].push(e.n); o[e.m].push(...e.a); }
-  return o;
-})();
-
-function detectMuscle(name) {
-  if (!name) return null;
+// 種目名 → 細分類の筋肉キー
+function muscleOf(name) {
   const d = EX_BY_NAME[name];
   if (d) return d.m;
+  if (!name) return null;
   const tm = strip(name);
   for (const e of EX_INDEX) if (e.key && tm.includes(e.key)) return e.def.m;
   return null;
+}
+// 種目名 → 大分類（ボディマップ用）
+function detectMuscle(name) {
+  const m = muscleOf(name);
+  return m && MUSCLES[m] ? MUSCLES[m].g : null;
+}
+// その種目で効く筋肉を「主働1.0 / 補助0.4」の重みで返す
+function muscleWeights(name) {
+  const d = EX_BY_NAME[name];
+  const m = d ? d.m : muscleOf(name);
+  if (!m) return null;
+  const out = {}; out[m] = 1;
+  for (const s of (d && d.m2 ? d.m2 : [])) out[s] = (out[s]||0) + 0.4;
+  return out;
 }
 
 // ── Time-of-day labels ──
@@ -1080,17 +1287,46 @@ document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => switchTab(
 // ───── Render ─────
 function render() { renderRecord(); renderSummary(); renderHistory(); }
 
+// 「いま何の種目として記録されるか」を常に見せる。
+// 種目名を省いて「10回」とだけ言えるのは、アプリが状態を持っているからで、
+// その状態が見えないとユーザーは自分の記録を信用できない。
+function renderNowBar() {
+  const bar = document.getElementById('nowBar');
+  const ex  = state.lastExercise;
+  if (!ex) { bar.style.display='none'; return; }
+  const mk = muscleOf(ex);
+  const g  = mk && MUSCLES[mk] ? MUSCLES[mk].g : null;
+  const def = EX_BY_NAME[ex];
+  const w  = (state.lastWeightBy||{})[ex];
+  bar.style.display = 'flex';
+  document.getElementById('nowDot').style.background = g ? GROUPS[g].color : 'var(--fg3)';
+  document.getElementById('nowEx').textContent = ex;
+  document.getElementById('nowSub').textContent =
+    (def && def.time) ? '秒数で記録' :
+    (def && def.bw)   ? '自重・回数のみ' :
+    (w!=null)         ? w + 'kg で継続' : '重量を言ってください';
+}
+document.getElementById('nowBar').onclick = () => {
+  // ここから種目を切り替えられる。声で言い直せない時の逃げ道。
+  openPicker(name => {
+    state.lastExercise = name; saveState(); renderNowBar();
+    toast('種目を ' + name + ' に変更', 'good');
+  });
+};
+
 function renderRecord() {
   const sets = todaySets();
   const vol = sets.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
   const exs = new Set(sets.filter(s=>s.exercise).map(s=>s.exercise));
   document.getElementById('heroVol').textContent = vol.toLocaleString();
-  document.getElementById('heroMeta').textContent = `${sets.length} sets · ${exs.size} exercises`;
+  document.getElementById('heroMeta').textContent = `${sets.length}セット · ${exs.size}種目`;
 
   // Ring center: set count + last exercise
   document.getElementById('ringSetNum').textContent = sets.length;
   const lastEx = sets.length > 0 ? (sets[sets.length-1].exercise || '') : '';
   document.getElementById('ringLastEx').textContent = lastEx;
+
+  renderNowBar();
 
   const body = document.getElementById('setsBody');
   const empty = document.getElementById('setsEmpty');
@@ -1109,27 +1345,26 @@ function renderRecord() {
   }
 
   body.innerHTML = groups.slice().reverse().map(g => {
-    const def = EX_BY_NAME[g.key];
+    const mk = muscleOf(g.key);
+    const mi = mk ? MUSCLES[mk] : null;
+    const color = mi ? GROUPS[mi.g].color : 'var(--fg3)';
     const gvol = g.items.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
     const rows = g.items.map((s,i) => {
       const t = new Date(s.ts);
       const tStr = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
       const pending = !s.exercise || (s.reps==null && s.seconds==null);
       return `<div class="set-row set-editable" data-id="${s.id}" style="${pending?'opacity:0.45':''}">
-        <div class="set-name-wrap">
-          <div class="set-name" style="opacity:.55;font-size:13px">${i+1}セット目</div>
-          <span class="set-time">${tStr}</span>
-        </div>
-        <div class="set-nums">
-          <span class="set-weight">${esc(fmtSet(s))}</span>
-        </div>
+        <span class="set-idx">${i+1}</span>
+        <span class="set-val">${esc(fmtSet(s))}</span>
+        <span class="set-time">${tStr}${s.edited?' 修正':''}</span>
         <button class="set-delete" data-id="${s.id}">✕</button>
       </div>`;
     }).join('');
     return `<div class="set-group">
       <div class="set-group-head">
+        <span class="set-group-dot" style="background:${color}"></span>
         <span class="set-group-name">${esc(g.key)}</span>
-        <span class="set-group-meta">${g.items.length}セット${gvol?' · '+gvol.toLocaleString()+'kg':''}${def&&def.bw?' · 自重':''}</span>
+        <span class="set-group-meta">${g.items.length}セット${gvol?' · '+gvol.toLocaleString()+'kg':''}</span>
       </div>
       ${rows}
     </div>`;
@@ -1311,14 +1546,22 @@ function renderWeightCard() {
 
 
 function renderBodyMap(sets) {
+  // 筋肉ごとの負荷。重量×回数を、主働筋1.0・補助筋0.4で配分する。
+  // 自重種目や時間種目もセット数として数え、「やったのに真っ黒」を避ける。
   const mv = {};
   for (const s of sets) {
-    if (!s.exercise||!s.weight||!s.reps) continue;
-    const g = detectMuscle(s.exercise);
-    if (!g) continue;
-    mv[g] = (mv[g]||0) + s.weight * s.reps;
+    if (!s.exercise) continue;
+    const w = muscleWeights(s.exercise);
+    if (!w) continue;
+    const load = (s.weight!=null && s.reps!=null) ? s.weight * s.reps
+               : (s.reps!=null) ? s.reps * 2.5            // 自重は概算の負荷に換算
+               : (s.seconds!=null) ? s.seconds * 0.5
+               : 0;
+    if (!load) continue;
+    for (const [mk, ratio] of Object.entries(w)) mv[mk] = (mv[mk]||0) + load * ratio;
   }
-  // Reset SVG
+
+  // SVGを一度リセット
   document.querySelectorAll('.bm').forEach(el => {
     el.setAttribute('fill','#2C2C2E'); el.removeAttribute('fill-opacity');
   });
@@ -1327,26 +1570,46 @@ function renderBodyMap(sets) {
   if (total === 0) {
     barsEl.innerHTML = '<div class="body-empty">記録すると表示されます</div>'; return;
   }
-  const sorted = Object.entries(mv).sort(([,a],[,b])=>b-a);
-  for (const [g,v] of sorted) {
-    const info = GROUPS[g]; if(!info) continue;
-    const op = (0.35 + (v/total)*0.65).toFixed(2);
+
+  // 同じSVG要素を複数の筋肉が共有するので、一番濃いものを採用する
+  const paint = {};
+  for (const [mk,v] of Object.entries(mv)) {
+    const info = MUSCLES[mk]; if (!info) continue;
+    const op = 0.3 + Math.min(v/total, 0.6) / 0.6 * 0.7;
     for (const pid of info.parts) {
-      const el = document.getElementById(pid);
-      if (el) { el.setAttribute('fill',info.color); el.setAttribute('fill-opacity',op); }
+      if (!paint[pid] || paint[pid].op < op) paint[pid] = { op, color: GROUPS[info.g].color };
     }
   }
-  barsEl.innerHTML = sorted.map(([g,v]) => {
+  for (const [pid,p] of Object.entries(paint)) {
+    const el = document.getElementById(pid);
+    if (el) { el.setAttribute('fill', p.color); el.setAttribute('fill-opacity', p.op.toFixed(2)); }
+  }
+
+  // 大分類でまとめ、その内訳として細分類を並べる
+  const byGroup = {};
+  for (const [mk,v] of Object.entries(mv)) {
+    const info = MUSCLES[mk]; if (!info) continue;
+    (byGroup[info.g] = byGroup[info.g] || {total:0, items:[]});
+    byGroup[info.g].total += v;
+    byGroup[info.g].items.push([info.label, v]);
+  }
+  const groups = Object.entries(byGroup).sort(([,a],[,b]) => b.total - a.total);
+
+  barsEl.innerHTML = groups.map(([g,data]) => {
     const info = GROUPS[g];
-    const pct = Math.round(v/total*100);
-    return `<div style="margin-bottom:11px">
+    const pct = Math.round(data.total/total*100);
+    const subs = data.items.sort(([,a],[,b])=>b-a)
+      .map(([label,v]) => `<span class="msub"><i style="background:${info.color}"></i>${label} ${Math.round(v/total*100)}%</span>`)
+      .join('');
+    return `<div class="mgroup">
       <div class="muscle-bar-top">
-        <span style="color:var(--fg2)">${info.label}</span>
+        <span style="color:var(--fg)">${info.label}</span>
         <span>${pct}%</span>
       </div>
       <div class="muscle-track">
         <div class="muscle-fill" style="width:${pct}%;background:${info.color};"></div>
       </div>
+      <div class="msub-wrap">${subs}</div>
     </div>`;
   }).join('');
 }
@@ -1499,23 +1762,33 @@ document.getElementById('resetAll').onclick = () => {
   location.reload();
 };
 
-// ───── 手動入力 / 認識ミスの修正 ─────
+// ───── 記録の追加・修正 ─────
 // 同じシートを「追加」と「修正」の両方に使う。editingId が入っていれば修正モード。
 let editingId = null;
 
-// 種目名の入力補助
-document.getElementById('exList').innerHTML =
-  EX_DEF.map(e=>`<option value="${esc(e.n)}"></option>`).join('');
+function setPickedExercise(name) {
+  document.getElementById('mEx').value = name || '';
+  const lbl = document.getElementById('mExLabel');
+  lbl.textContent = name || '選択してください';
+  lbl.style.color = name ? 'var(--fg)' : 'var(--fg3)';
+  // 自重種目なら重量欄を、時間種目なら回数欄を隠す。入力すべき欄だけを見せる。
+  const def = name ? EX_BY_NAME[name] : null;
+  document.getElementById('mWGroup').style.display     = (def && def.bw)   ? 'none' : '';
+  document.getElementById('mFieldsReps').style.display = (def && def.time) ? 'none' : '';
+  document.getElementById('mFieldsTime').style.display = (def && def.time) ? '' : (def ? 'none' : '');
+}
 
 function openSetSheet(row) {
   editingId = row ? row.id : null;
-  document.getElementById('mTitle').textContent = row ? '記録を修正' : '手動入力';
+  document.getElementById('mTitle').textContent = row ? '記録を修正' : '記録を追加';
   document.getElementById('mSave').textContent  = row ? '保存' : '追加';
   document.getElementById('mDelete').style.display = row ? '' : 'none';
-  document.getElementById('mEx').value = row ? (row.exercise||'') : (state.lastExercise||'');
-  document.getElementById('mW').value  = row && row.weight!=null  ? row.weight  : '';
-  document.getElementById('mR').value  = row && row.reps!=null    ? row.reps    : '';
-  document.getElementById('mS').value  = row && row.seconds!=null ? row.seconds : '';
+  document.getElementById('mW').value = row && row.weight!=null  ? row.weight  : '';
+  document.getElementById('mR').value = row && row.reps!=null    ? row.reps    : '';
+  document.getElementById('mS').value = row && row.seconds!=null ? row.seconds : '';
+  setPickedExercise(row ? (row.exercise||'') : (state.lastExercise||''));
+  // 秒数で記録されている行は、種目辞書に無くても秒数欄を出す
+  if (row && row.seconds!=null) document.getElementById('mFieldsTime').style.display = '';
   openSheet('sheetManual');
 }
 
@@ -1538,12 +1811,14 @@ document.getElementById('mSave').onclick = () => {
   const r = rv===''?null:parseInt(rv,10);
   const sec = sv===''?null:parseFloat(sv);
   // 自重種目は重量なしで成立する。回数か秒数のどちらかがあればよい
-  if(!ex || (r===null && sec===null)){ toast('種目と、回数か秒数が必要です','bad'); return; }
+  if(!ex){ toast('種目を選んでください','bad'); return; }
+  if(r===null && sec===null){ toast('回数か秒数を入れてください','bad'); return; }
 
   if(editingId){
     const row = state.sets.find(s=>s.id===editingId);
     if(row){ row.exercise=ex; row.weight=w; row.reps=r; row.seconds=sec; row.edited=true; }
     editingId=null;
+    state.lastExercise=ex;
     saveState(); closeSheets(); render();
     toast('修正しました','good');
     return;
@@ -1553,10 +1828,94 @@ document.getElementById('mSave').onclick = () => {
   const row={id:'m'+Date.now(),ts:Date.now(),exercise:ex,weight:w,reps:r,seconds:sec,transcript:'(manual)',raw:{}};
   state.sets.push(row);
   state.lastExercise=ex;
+  if(w!=null){ state.lastWeightBy=state.lastWeightBy||{}; state.lastWeightBy[ex]=w; }
   saveState(); closeSheets(); render();
   playSuccessTone();
   if(navigator.vibrate) navigator.vibrate(30);
   toast(`${ex} ${fmtSet(row)} 追加`,'good');
+};
+
+// ───── 種目ピッカー ─────
+// 100種目を超えるので、検索と部位フィルタが無いと選べない。
+let pkFilter = 'all';
+const PK_GROUP_ORDER = ['chest','back','shoulder','arm','leg','core','cardio'];
+
+document.getElementById('pkChips').innerHTML =
+  [['all','すべて']].concat(PK_GROUP_ORDER.map(g=>[g,GROUPS[g].label]))
+    .map(([k,label])=>`<button class="pk-chip${k==='all'?' on':''}" data-k="${k}">${label}</button>`).join('');
+
+function renderPicker() {
+  const q = strip(document.getElementById('pkSearch').value).toLowerCase();
+  const qf = foldKana(q);
+  const listEl = document.getElementById('pkList');
+
+  // 今日やった種目を先頭に出す。「さっきと同じやつ」を探す手間を消す。
+  const usedToday = [...new Set(todaySets().map(s=>s.exercise).filter(Boolean))].reverse();
+
+  const match = e => {
+    if (pkFilter !== 'all' && MUSCLES[e.m] && MUSCLES[e.m].g !== pkFilter) return false;
+    if (!q) return true;
+    const hay = foldKana(strip(e.n + e.a.join('') + MUSCLES[e.m].label + GROUPS[MUSCLES[e.m].g].label));
+    return hay.includes(qf);
+  };
+
+  let html = '';
+  if (!q && pkFilter === 'all' && usedToday.length) {
+    html += `<div class="pk-head">今日やった種目</div>` +
+      usedToday.map(n => pkRow(EX_BY_NAME[n] || {n, m:muscleOf(n)})).join('');
+  }
+  for (const g of PK_GROUP_ORDER) {
+    const items = EX_DEF.filter(e => MUSCLES[e.m] && MUSCLES[e.m].g === g && match(e));
+    if (!items.length) continue;
+    html += `<div class="pk-head">${GROUPS[g].label}</div>` + items.map(pkRow).join('');
+  }
+  listEl.innerHTML = html || '<div class="pk-empty">見つかりません<br>そのまま入力しても記録できます</div>';
+  listEl.querySelectorAll('.pk-item').forEach(b => {
+    b.onclick = () => {
+      const fn = pkOnPick; closePicker();
+      if (fn) fn(b.dataset.n);
+      if(navigator.vibrate) navigator.vibrate(10);
+    };
+  });
+}
+
+// ピッカーは「記録の種目欄」と「現在の種目バー」の両方から開くので、
+// 選ばれた時に何をするかは呼び出し側が渡す。
+let pkOnPick = null;
+function openPicker(onPick) {
+  pkOnPick = onPick;
+  document.getElementById('pkSearch').value = '';
+  pkFilter = 'all';
+  document.querySelectorAll('.pk-chip').forEach(c => c.classList.toggle('on', c.dataset.k==='all'));
+  renderPicker();
+  openSheet('sheetPicker');
+}
+function closePicker() {
+  pkOnPick = null;
+  const el = document.getElementById('sheetPicker');
+  el.classList.remove('vis');
+  setTimeout(()=>el.classList.remove('on'), 360);
+}
+
+function pkRow(e) {
+  const mi = MUSCLES[e.m];
+  const color = mi ? GROUPS[mi.g].color : 'var(--fg3)';
+  const tags = [mi ? mi.label : '', e.bw ? '自重' : '', e.time ? '時間' : ''].filter(Boolean).join(' · ');
+  return `<button class="pk-item" data-n="${esc(e.n)}">
+    <span class="pk-dot" style="background:${color}"></span>
+    <span class="pk-name">${esc(e.n)}</span>
+    <span class="pk-meta">${esc(tags)}</span>
+  </button>`;
+}
+
+document.getElementById('mExBtn').onclick = () => openPicker(setPickedExercise);
+document.getElementById('pkClose').onclick = closePicker;
+document.getElementById('pkSearch').oninput = renderPicker;
+document.getElementById('pkChips').onclick = (ev) => {
+  const c = ev.target.closest('.pk-chip'); if(!c) return;
+  pkFilter = c.dataset.k;
+  document.querySelectorAll('.pk-chip').forEach(x => x.classList.toggle('on', x===c));
+  renderPicker();
 };
 
 // ───── End Session ─────
@@ -1624,21 +1983,76 @@ function knownExerciseTerms() {
   return [...new Set(terms)].sort((a,b) => b.length - a.length);
 }
 
-// 種目の照合。ユーザー登録の略語を最優先し、次に辞書を長い語から当てる
-function matchExercise(tm) {
+// ── ゆらぎ照合 ──
+// needle が hay の「どこか」に、何文字の書き換えで収まるかを返す。
+// 先頭・末尾の余りは無料にしてあるので、長い発話の一部だけを見に行ける。
+function substrDistance(hay, needle) {
+  const n = needle.length, h = hay.length;
+  if (!n) return 99;
+  let prev = new Array(h+1).fill(0);            // 開始位置は自由
+  let cur  = new Array(h+1).fill(0);
+  for (let i = 1; i <= n; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= h; j++) {
+      const cost = needle[i-1] === hay[j-1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + cost);
+    }
+    const t = prev; prev = cur; cur = t;
+  }
+  let best = Infinity;
+  for (let j = 0; j <= h; j++) best = Math.min(best, prev[j]);  // 終了位置も自由
+  return best;
+}
+
+// いま何をやっているか。文脈は認識の精度に直結する
+function speechContext() {
+  const ex  = state.lastExercise || null;
+  const def = ex ? EX_BY_NAME[ex] : null;
+  const recent = new Set(todaySets().map(s => s.exercise).filter(Boolean));
+  if (ex) recent.add(ex);
+  return { ex, def, recent };
+}
+
+// 種目の照合：①ユーザー略語 ②完全一致 ③ゆらぎ一致（文脈で下駄をはかせる）
+function matchExercise(tm, ctx) {
+  ctx = ctx || speechContext();
+
+  // ① ユーザーが自分で登録した言い方が最優先
   for (const line of String(cfg.aliases||'').split(/[\n,]/)) {
     const [a,b] = line.split('=').map(x => strip(x));
     if (a && b && tm.includes(a)) {
       const hit = EX_INDEX.find(e => e.key === b);
-      return hit ? hit.def : {n:b, m:detectMuscle(b)};
+      return hit ? hit.def : {n:b, m:muscleOf(b)};
     }
   }
+
+  // ② そのままの文字列で当たるならそれが正しい
   for (const e of EX_INDEX) if (e.key && tm.includes(e.key)) return e.def;
-  return null;
+
+  // ③ 聞き間違いを想定した照合。
+  //    「ペンチプレス」「ベンチプレース」のような濁点・長音のズレをここで拾う。
+  const hay = foldKana(tm);
+  if (hay.length < 3) return null;
+  let best = null;
+  for (const e of EX_INDEX) {
+    if (e.fold.length < 4) continue;             // 短い別名は誤爆するので対象外
+    const d = substrDistance(hay, e.fold);
+    if (d === 0) return e.def;
+    const inCtx = ctx.recent.has(e.def.n);
+    const allow = Math.floor(e.fold.length / 4) + (inCtx ? 1 : 0);
+    if (d > allow) continue;
+    // 同じズレ幅なら長い語を、さらに今日やっている種目を優先する
+    const score = d / e.fold.length - (inCtx ? 0.12 : 0);
+    if (!best || score < best.score) best = { def:e.def, score };
+  }
+  return best ? best.def : null;
 }
 
 // 掛け声・独り言。数値を伴わなければ記録対象外
-const CHATTER = /(以上です|お疲れ|よし|やば|きつ|重い|軽い|あと少し|がんばれ|ちょっと待|すいません|ありがとう)/;
+const CHATTER = /(以上です|お疲れ|よし|やば|きつ|重い|軽い|あと少し|がんばれ|ちょっと待|すいません|ありがとう|オッケー|よいしょ)/;
+// 直前の記録を直す／消すための発話
+const RE_FIX  = /(ちがう|違う|じゃなくて|ではなく|まちがえ|間違え|訂正|修正)/;
+const RE_UNDO = /(取り消|取消|今の.{0,2}消|さっきの.{0,2}消|1つ前.{0,2}消|ひとつ前.{0,2}消|削除して|消して)/;
 
 // ローカル解析：ジムでの実発話パターンをAPIなしで即処理
 function localParse(raw) {
@@ -1646,12 +2060,17 @@ function localParse(raw) {
   const tm = strip(t);
   if (!tm) return { _noise:true };
 
+  const ctx = speechContext();
+
   // 制御発話
   if (/^(セット終わり|セット終了|終わり|終了|次|以上|おわり)$/.test(tm)) {
     return { exercise:null, weight:null, reps:null, seconds:null, set_end:true, note:null, _local:true };
   }
 
-  const exDef = matchExercise(tm);
+  // 「取り消し」「今の消して」→ 直前の記録を削除
+  if (RE_UNDO.test(tm) && !/\d/.test(tm)) return { undo:true, _local:true };
+
+  const exDef = matchExercise(tm, ctx);
   const exercise = exDef ? exDef.n : null;
 
   // 秒数（プランク等）：「60秒」「1分」「1分30秒」
@@ -1671,6 +2090,11 @@ function localParse(raw) {
   const rM = tm.match(/(\d+)\s*(?:回|かい|レップ|reps?|発)/);
   if (rM) reps = parseInt(rM[1], 10);
 
+  // セット数：「10回3セット」とまとめて言うことがある
+  let setCount = null;
+  const setM = tm.match(/(\d+)\s*セット/);
+  if (setM) setCount = parseInt(setM[1], 10);
+
   // 「80キロ10」のように後半の単位が落ちた場合
   if (weight !== null && reps === null && seconds === null) {
     const tail = tm.slice(tm.indexOf(wM[0]) + wM[0].length);
@@ -1678,8 +2102,16 @@ function localParse(raw) {
     if (t2) reps = parseInt(t2[1], 10);
   }
 
+  // 「違う、インクライン」→ 直前の記録の修正
+  if (RE_FIX.test(tm)) {
+    if (exercise || weight!==null || reps!==null || seconds!==null) {
+      return { fix:true, exercise, weight, reps, seconds, _local:true };
+    }
+    return { _noise:true };
+  }
+
   // 種目名だけ ＝ 種目の切り替え宣言。記録はせず「次はこれ」を覚えるだけ
-  if (exercise && weight===null && reps===null && seconds===null) {
+  if (exercise && weight===null && reps===null && seconds===null && setCount===null) {
     return { exercise, weight:null, reps:null, seconds:null, set_end:false, note:null, switch_only:true, _local:true };
   }
 
@@ -1687,14 +2119,17 @@ function localParse(raw) {
   if (!/\d/.test(tm)) return { _noise:true };
   if (CHATTER.test(tm) && reps===null && seconds===null && weight===null) return { _noise:true };
 
-  // 数値だけ（「10」）→ 回数とみなす
+  // 数値だけ（「10」）→ 文脈で意味を決める。
+  // プランクやランニングの最中なら「10」は秒数、それ以外は回数。
   if (reps===null && seconds===null && weight===null && /^\d+$/.test(tm)) {
-    reps = parseInt(tm, 10);
+    const n = parseInt(tm, 10);
+    const timeMode = (exDef && exDef.time) || (!exDef && ctx.def && ctx.def.time);
+    if (timeMode) seconds = n; else reps = n;
   }
 
   if (reps === null && seconds === null) return null;   // 解釈不能 → Claudeへ
 
-  return { exercise, weight, reps, seconds, set_end:false, note:null, _local:true };
+  return { exercise, weight, reps, seconds, setCount, set_end:false, note:null, _local:true };
 }
 
 // Claude APIで解析（ローカルで解釈できなかった発話のみ）
@@ -2047,10 +2482,37 @@ async function flushSeg(){
   if(!parsed) return;
   if(parsed.exercise) parsed.exercise=applyAlias(parsed.exercise);
 
+  // 「取り消し」「今の消して」＝直前の記録を削除
+  if(parsed.undo){
+    const last = state.sets[state.sets.length-1];
+    if(!last){ setTranscript('消す記録がありません',false); return; }
+    state.sets.pop(); saveState(); render();
+    setTranscript('取り消し：'+(last.exercise||'?')+' '+fmtSet(last), true);
+    if(navigator.vibrate) navigator.vibrate([20,40,20]);
+    return;
+  }
+
+  // 「違う、インクライン」＝直前の記録を言い直しで上書き
+  if(parsed.fix){
+    const last = state.sets[state.sets.length-1];
+    if(!last){ setTranscript('直す記録がありません',false); return; }
+    if(parsed.exercise!=null) last.exercise = parsed.exercise;
+    if(parsed.weight  !=null) last.weight   = parsed.weight;
+    if(parsed.reps    !=null) last.reps     = parsed.reps;
+    if(parsed.seconds !=null) last.seconds  = parsed.seconds;
+    last.edited = true;
+    if(last.exercise) state.lastExercise = last.exercise;
+    saveState(); render();
+    setTranscript('修正：'+(last.exercise||'?')+' · '+fmtSet(last), true);
+    if(navigator.vibrate) navigator.vibrate(30);
+    return;
+  }
+
   // 種目名だけの発話＝次の種目の宣言。記録はせず状態だけ切り替える
   if(parsed.switch_only){
     state.lastExercise=parsed.exercise; saveState();
     setTranscript('種目 → '+parsed.exercise, true);
+    render();
     if(navigator.vibrate) navigator.vibrate(15);
     return;
   }
@@ -2072,14 +2534,20 @@ async function flushSeg(){
   if(parsed.weight!=null && parsed.exercise) state.lastWeightBy[parsed.exercise]=parsed.weight;
 
   if(parsed.weight!=null||parsed.reps!=null||parsed.seconds!=null){
-    const row={
-      id:'r'+Date.now()+Math.random().toString(36).slice(2,6),
-      ts:Date.now(), exercise:parsed.exercise||null,
-      weight:parsed.weight, reps:parsed.reps, seconds:parsed.seconds??null,
-      transcript:text, raw:parsed,
-    };
-    state.sets.push(row); saveState();
-    setTranscript(`${row.exercise||'?'} · ${fmtSet(row)}`,true);
+    // 「10回3セット」とまとめて言われたら、その分だけ行を作る
+    const n = Math.min(Math.max(parsed.setCount||1, 1), 10);
+    let row=null;
+    for(let i=0;i<n;i++){
+      row={
+        id:'r'+Date.now()+i+Math.random().toString(36).slice(2,6),
+        ts:Date.now()+i, exercise:parsed.exercise||null,
+        weight:parsed.weight, reps:parsed.reps, seconds:parsed.seconds??null,
+        transcript:text, raw:parsed,
+      };
+      state.sets.push(row);
+    }
+    saveState();
+    setTranscript(`${row.exercise||'?'} · ${fmtSet(row)}${n>1?' ×'+n+'セット':''}`,true);
     render();
     playSuccessTone();
     if(navigator.vibrate) navigator.vibrate(30);
