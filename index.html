@@ -262,6 +262,17 @@ input, select, textarea { font-family: inherit; }
   border-color: rgba(79,127,255,0.7);
   box-shadow: 0 0 40px var(--accent-glow), 0 0 80px rgba(79,127,255,0.1), inset 0 0 50px rgba(79,127,255,0.05);
 }
+/* 録音中は赤。青（マイク接続中）と混同させないため色相ごと変える。
+   「押したつもりで録れていない」が最悪の失敗なので、脈動させて動きでも伝える。 */
+.ring-border.talking {
+  border-color: var(--red); border-width: 2.5px;
+  box-shadow: 0 0 40px rgba(255,69,58,0.35), inset 0 0 50px rgba(255,69,58,0.08);
+  animation: talkPulse 1.1s ease-in-out infinite;
+}
+@keyframes talkPulse {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0.45; }
+}
 .ring-pulse {
   position: absolute; inset: -16px; border-radius: 50%;
   border: 1px solid var(--accent); opacity: 0; pointer-events: none;
@@ -616,7 +627,7 @@ input, select, textarea { font-family: inherit; }
               <div class="ring-set-num" id="ringSetNum">0</div>
               <div class="ring-set-label">SETS</div>
               <div class="ring-last-ex" id="ringLastEx"></div>
-              <div class="ring-tap-hint">タップして開始</div>
+              <div class="ring-tap-hint" id="ringTapHint">タップして話す</div>
             </div>
             <!-- LIVE: waveform -->
             <div class="ring-live-view" id="ringLiveView">
@@ -830,6 +841,17 @@ input, select, textarea { font-family: inherit; }
     </select>
   </div>
   <div class="form-group">
+    <label class="form-label">マイクの入り方</label>
+    <select class="form-select" id="micMode">
+      <option value="ptt">タップして話す（確実・音楽OK）</option>
+      <option value="auto">自動検出（ハンズフリー・静かな場所のみ）</option>
+    </select>
+    <div class="form-help">
+      自動検出は音量で声を判別します。音楽をかけると声と区別できず、
+      記録されたりされなかったりします。音楽を流すなら「タップして話す」を使ってください。
+    </div>
+  </div>
+  <div class="form-group">
     <label class="form-label">音楽再生モード</label>
     <select class="form-select" id="musicMode">
       <option value="on">ON — Spotifyなど流しながら使う</option>
@@ -915,7 +937,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 14; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 15; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -1188,6 +1210,10 @@ const DEF_CFG = {
   // 無音判定は短いほど反応が速い。700msあれば「ベンチプレス80キロ10回」の
   // 途中の息継ぎでは切れず、言い終わりからの待ち時間は体感で半減する。
   silenceMs:700, volThr:12, volThrMode:'floor', lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
+  // マイクの入り方。'ptt'＝タップして話す（確実）、'auto'＝声を検出して自動送信（ハンズフリー）。
+  // 音楽をかけていると auto は原理的に成立しない（下の onaudioprocess のコメント参照）ので、
+  // 既定は ptt。確実に記録できることを、手が空くことより優先する。
+  micMode:'ptt',
 };
 // 範囲外・空文字・NaNを既定値に丸める
 function numOr(v, def, min, max) {
@@ -1719,6 +1745,7 @@ function fillSettingsForm() {
   document.getElementById('apiKey').value=cfg.apiKey||'';
   document.getElementById('claudeKey').value=cfg.claudeKey||'';
   document.getElementById('model').value=cfg.model;
+  document.getElementById('micMode').value=cfg.micMode||'ptt';
   document.getElementById('musicMode').value=cfg.musicMode;
   document.getElementById('silenceMs').value=cfg.silenceMs;
   document.getElementById('volThr').value=cfg.volThr;
@@ -1734,6 +1761,7 @@ document.getElementById('saveSettings').onclick = async () => {
   cfg.apiKey=document.getElementById('apiKey').value.trim();
   cfg.claudeKey=document.getElementById('claudeKey').value.trim();
   cfg.model=document.getElementById('model').value;
+  cfg.micMode=document.getElementById('micMode').value;
   cfg.musicMode=document.getElementById('musicMode').value;
   // 空欄・不正値をそのまま数値化すると0になり音声検出が壊れるため既定値に戻す
   cfg.silenceMs=numOr(document.getElementById('silenceMs').value, DEF_CFG.silenceMs, 200, 5000);
@@ -2269,6 +2297,7 @@ let noiseFloor=null;   // 周囲の騒音レベル（自動追従）
 // 「クワット」を別語に化かす。常に直前を持っておき、遡って足す。
 let preRoll=[];
 const PREROLL_SEC = 0.35;
+let pttActive=false;   // 「タップして話す」で録音中か
 let elapsedTimer;
 let keepAwakeOsc=null, keepAwakeGain=null;
 
@@ -2384,6 +2413,30 @@ async function startCapture(){
              +`${speaking?'●検出':'待機'} buf${(segBuffer.length/sr0).toFixed(1)}s`);
         }
       }
+      // ── タップして話すモード ──
+      // 音量による発話判定は、音楽をかけた瞬間に破綻する。
+      // 声も音楽も 300-3400Hz に同じように energy を持つので、
+      // 「音楽より大きい音＝声」という区別が原理的にできない。
+      // しきい値を下げれば音楽が延々と発話扱いになり、上げれば声が届かない。
+      // どちらに転んでも記録できないので、ここでは判定そのものをやめて、
+      // 「押した間だけ録る」という決定的な合図をユーザーからもらう。
+      if(cfg.micMode==='ptt'){
+        if(pttActive){
+          if(!isVoice){ for(let i=0;i<preRoll.length;i++) segBuffer.push(preRoll[i]); preRoll.length=0; }
+          isVoice=true;
+          segBuffer.push(...Array.from(ch));
+          // 押しっぱなしを忘れても必ず前に進める
+          const srP1=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
+          if(segBuffer.length > srP1*MAX_SEG_SEC){ pttActive=false; setUiTalking(false); flushSeg(); }
+        } else {
+          const srP2=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
+          for(let i=0;i<ch.length;i++) preRoll.push(ch[i]);
+          const keep2=Math.floor(srP2*PREROLL_SEC);
+          if(preRoll.length>keep2) preRoll.splice(0, preRoll.length-keep2);
+        }
+        return;
+      }
+
       if(speaking){
         // 発話の立ち上がりでだけ、溜めておいた直前の音を先に流し込む
         if(!isVoice){ for(let i=0;i<preRoll.length;i++) segBuffer.push(preRoll[i]); preRoll.length=0; }
@@ -2439,6 +2492,7 @@ function stopCapture(){
   if(audioCtx){audioCtx.close();audioCtx=null;}
   if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
   segBuffer=[]; preRoll=[]; clearTimeout(segTimer); isVoice=false; silenceStart=null;
+  pttActive=false; setUiTalking(false);
   clearInterval(elapsedTimer); clearInterval(statusTimer); statusTimer=null; setUiLive(false);
 }
 
@@ -2481,6 +2535,8 @@ async function flushSeg(){
   const sr = (audioCtx && audioCtx.sampleRate) ? audioCtx.sampleRate : 44100;
   if(segBuffer.length < sr * MIN_SEG_SEC){
     dbg(`短すぎて破棄 ${(segBuffer.length/sr).toFixed(2)}s (下限${MIN_SEG_SEC}s)`);
+    // タップして話すモードでは、これは操作ミス（止めるのが早すぎた）。黙って捨てない。
+    if(cfg.micMode==='ptt') setTranscript('短すぎます・話し終えてからタップ', false);
     segBuffer=[]; isVoice=false; silenceStart=null; return;
   }
   dbg(`送信中 ${(segBuffer.length/sr).toFixed(1)}s @${sr}Hz…`);
@@ -2673,7 +2729,7 @@ function setUiLive(live){
   } else {
     idleView.style.display = 'flex';
     liveView.style.display = 'none';
-    setTranscript('小声でOK・自動で記録されます', false);
+    setTranscript(cfg.micMode==='ptt' ? 'タップして話す（音楽OK）' : '小声でOK・自動で記録されます', false);
     updateBars([]);
   }
 
@@ -2705,9 +2761,57 @@ function dismissOnboarding() {
   }, 450);
 }
 
+// 「話す」状態の見た目。録音中だとひと目で分かることが、押し忘れを防ぐ唯一の手段。
+function setUiTalking(on){
+  document.getElementById('micBtn').classList.toggle('talking', on);
+  document.getElementById('ringBorder').classList.toggle('talking', on);
+  if(on) setTranscript('聞いています… もう一度タップで送信', false);
+}
+
+function startTalking(){
+  if(recState!=='live') return;
+  pttActive=true; setUiTalking(true);
+  if(navigator.vibrate) navigator.vibrate(15);
+}
+
+function stopTalking(){
+  pttActive=false; setUiTalking(false);
+  setTranscript('送信中…', false);
+  clearTimeout(segTimer);
+  flushSeg();
+}
+
+let suppressMicClick=false;   // 長押しで終了した直後のクリックを食わせない
+
 document.getElementById('micBtn').onclick = async()=>{
+  if(suppressMicClick){ suppressMicClick=false; return; }
+  if(cfg.micMode==='ptt'){
+    // 1タップ目でマイクを開き、そのまま録音を始める。
+    // 「開始」と「話す」を分けると、押したのに録れていない状態が生まれる。
+    if(recState==='idle'){ await startCapture(); if(recState==='live') startTalking(); return; }
+    if(pttActive) stopTalking(); else startTalking();
+    return;
+  }
   if(recState==='idle') await startCapture(); else stopCapture();
 };
+
+// タップして話すモード中にセッションを終える手段。長押しでマイクを閉じる。
+(()=>{
+  const btn=document.getElementById('micBtn');
+  let holdT=null;
+  const begin=()=>{
+    if(cfg.micMode!=='ptt'||recState!=='live') return;
+    holdT=setTimeout(()=>{
+      holdT=null; suppressMicClick=true;
+      pttActive=false; setUiTalking(false); segBuffer=[];
+      stopCapture(); toast('マイクを終了しました','good');
+      if(navigator.vibrate) navigator.vibrate([20,40,20]);
+    }, 700);
+  };
+  const end=()=>{ if(holdT){ clearTimeout(holdT); holdT=null; } };
+  btn.addEventListener('pointerdown', begin);
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev, end));
+})();
 
 // ───── Period Toggle ─────
 document.querySelectorAll('.seg-btn').forEach(btn => {
