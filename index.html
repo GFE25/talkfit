@@ -820,7 +820,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 8; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 9; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -890,12 +890,24 @@ function makeSessionName(ts) {
 }
 
 // ───── State ─────
-const cfg = Object.assign({
+const DEF_CFG = {
   apiKey:'',        // OpenAI（Whisper音声認識用）
   claudeKey:'',     // Claude（発話解析用）
   model:'whisper-1',
   silenceMs:1200, volThr:3, lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
-}, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
+};
+// 範囲外・空文字・NaNを既定値に丸める
+function numOr(v, def, min, max) {
+  const n = parseFloat(v);
+  if (!isFinite(n) || n < min || n > max) return def;
+  return n;
+}
+const cfg = Object.assign({}, DEF_CFG, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
+// 既に壊れた値が保存されている端末を自動修復する
+cfg.silenceMs = numOr(cfg.silenceMs, DEF_CFG.silenceMs, 200, 5000);
+cfg.volThr    = numOr(cfg.volThr,    DEF_CFG.volThr,    1,   100);
+if (!cfg.model) cfg.model = DEF_CFG.model;
+if (!cfg.lang && cfg.lang !== '') cfg.lang = DEF_CFG.lang;
 
 const state = Object.assign({
   sessionStart:null, sets:[], lastExercise:null, sessions:[], weights:[],
@@ -1313,7 +1325,11 @@ function closeSheets() {
 overlay.onclick = closeSheets;
 
 // ───── Settings ─────
-document.getElementById('settingsBtn').onclick = () => {
+// 設定画面は複数の経路から開かれる（歯車・キー未設定時の誘導・初回起動）。
+// 値の流し込みを歯車経路だけに書いていたため、他の経路では入力欄が空のまま開き、
+// そこで保存すると空文字が数値化されて volThr=0 / silenceMs=0 が保存され、
+// 音声が0.09秒でブツ切りされる原因になっていた。開く処理を必ず一本化する。
+function fillSettingsForm() {
   document.getElementById('apiKey').value=cfg.apiKey||'';
   document.getElementById('claudeKey').value=cfg.claudeKey||'';
   document.getElementById('model').value=cfg.model;
@@ -1323,16 +1339,19 @@ document.getElementById('settingsBtn').onclick = () => {
   document.getElementById('lang').value=cfg.lang;
   document.getElementById('debugMode').value=cfg.debugMode||'off';
   document.getElementById('aliases').value=cfg.aliases;
-  openSheet('sheetSettings');
-};
+}
+function openSettings() { fillSettingsForm(); openSheet('sheetSettings'); }
+
+document.getElementById('settingsBtn').onclick = openSettings;
 document.getElementById('closeSettings').onclick = closeSheets;
 document.getElementById('saveSettings').onclick = async () => {
   cfg.apiKey=document.getElementById('apiKey').value.trim();
   cfg.claudeKey=document.getElementById('claudeKey').value.trim();
   cfg.model=document.getElementById('model').value;
   cfg.musicMode=document.getElementById('musicMode').value;
-  cfg.silenceMs=+document.getElementById('silenceMs').value;
-  cfg.volThr=+document.getElementById('volThr').value;
+  // 空欄・不正値をそのまま数値化すると0になり音声検出が壊れるため既定値に戻す
+  cfg.silenceMs=numOr(document.getElementById('silenceMs').value, DEF_CFG.silenceMs, 200, 5000);
+  cfg.volThr=numOr(document.getElementById('volThr').value, DEF_CFG.volThr, 1, 100);
   cfg.lang=document.getElementById('lang').value;
   cfg.debugMode=document.getElementById('debugMode').value;
   cfg.aliases=document.getElementById('aliases').value;
@@ -1626,7 +1645,7 @@ function playSuccessTone() {
 }
 
 async function startCapture(){
-  if(!cfg.apiKey){ openSheet('sheetSettings'); toast('OpenAI APIキーを設定してください','bad'); return; }
+  if(!cfg.apiKey){ openSettings(); toast('OpenAI APIキーを設定してください','bad'); return; }
   try {
     // iOS: 音楽と共存するための制約設定
     const constraints = {
@@ -1885,7 +1904,7 @@ function dismissOnboarding() {
   el.classList.add('out');
   setTimeout(() => {
     el.style.display = 'none';
-    if(!cfg.apiKey) openSheet('sheetSettings'); // キー未設定なら設定へ誘導
+    if(!cfg.apiKey) openSettings(); // キー未設定なら設定へ誘導
   }, 450);
 }
 
@@ -1928,7 +1947,7 @@ if(!localStorage.getItem(LS_ONBOARD)) {
   setTimeout(()=>showOnboarding(), 200);
 } else if(!cfg.apiKey) {
   // オンボーディング済みだがキー未設定なら設定を開く
-  setTimeout(()=>openSheet('sheetSettings'), 300);
+  setTimeout(()=>openSettings(), 300);
 }
 render();
 </script>
