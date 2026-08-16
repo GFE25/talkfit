@@ -937,7 +937,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 15; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 16; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -2298,6 +2298,28 @@ let noiseFloor=null;   // 周囲の騒音レベル（自動追従）
 let preRoll=[];
 const PREROLL_SEC = 0.35;
 let pttActive=false;   // 「タップして話す」で録音中か
+
+// ── 録音の本体 ──
+// ScriptProcessor + 自前WAV は、iOSでAudioContextがsuspendedになると
+// onaudioprocess が一度も発火せず、無音のまま「録音中」に見える。
+// タップして話す方式では音量解析が要らないので、録音は MediaRecorder に任せる。
+// ブラウザが直接ストリームを掴むため、AudioContextの状態に左右されない。
+let mediaRec=null, recChunks=[], pttMaxTimer=null;
+function pickRecorderMime(){
+  if(!window.MediaRecorder) return null;
+  // iOS Safari は webm を作れない。mp4 を最優先で見る。
+  for(const m of ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus']){
+    try { if(MediaRecorder.isTypeSupported(m)) return m; } catch(e){}
+  }
+  return '';   // 空文字＝ブラウザ既定に任せる
+}
+function mimeToFilename(m){
+  if(!m) return 'audio.mp4';
+  if(m.includes('mp4')) return 'audio.mp4';
+  if(m.includes('webm')) return 'audio.webm';
+  if(m.includes('ogg')) return 'audio.ogg';
+  return 'audio.mp4';
+}
 let elapsedTimer;
 let keepAwakeOsc=null, keepAwakeGain=null;
 
@@ -2362,6 +2384,11 @@ async function startCapture(){
       }
     };
     mediaStream=await navigator.mediaDevices.getUserMedia(constraints);
+    // タップして話すモードでは AudioContext は波形表示のためだけに使う。
+    // 音声そのものは MediaRecorder が握るので、ここで失敗しても録音は続けられる。
+    // 以前はこの中の例外が catch まで飛び、マイクは開いているのに
+    // recState が live にならず「押しても何も起きない」状態を作っていた。
+    try {
     // latencyHint:'playback' でiOSがSpotifyを止めにくくなる
     audioCtx=new (window.AudioContext||window.webkitAudioContext)({
       latencyHint:'playback',
@@ -2421,14 +2448,15 @@ async function startCapture(){
       // どちらに転んでも記録できないので、ここでは判定そのものをやめて、
       // 「押した間だけ録る」という決定的な合図をユーザーからもらう。
       if(cfg.micMode==='ptt'){
-        if(pttActive){
+        // MediaRecorder が動いている時は、そちらが本体。二重に溜めない。
+        if(pttActive && !mediaRec){
           if(!isVoice){ for(let i=0;i<preRoll.length;i++) segBuffer.push(preRoll[i]); preRoll.length=0; }
           isVoice=true;
           segBuffer.push(...Array.from(ch));
           // 押しっぱなしを忘れても必ず前に進める
           const srP1=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
-          if(segBuffer.length > srP1*MAX_SEG_SEC){ pttActive=false; setUiTalking(false); flushSeg(); }
-        } else {
+          if(segBuffer.length > srP1*MAX_SEG_SEC) stopTalking();
+        } else if(!pttActive){
           const srP2=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
           for(let i=0;i<ch.length;i++) preRoll.push(ch[i]);
           const keep2=Math.floor(srP2*PREROLL_SEC);
@@ -2463,6 +2491,12 @@ async function startCapture(){
     startKeepAwake(); // iOS screen-off fix
     dbgFrames=0; dbgPeak=0; dbgRawPeak=0; dbgVol=0; noiseFloor=null; preRoll=[];
     dbg(`起動 ctx=${audioCtx.state} ${audioCtx.sampleRate}Hz`);
+    } catch(ctxErr){
+      // 波形が出ないだけ。タップして話す方式なら録音自体は成立する。
+      audioCtx=null; analyser=null; processor=null;
+      if(cfg.micMode!=='ptt'){ toast('音声解析を開始できません: '+ctxErr.message,'bad'); return; }
+      dbg('AudioContext不可（録音は継続）: '+ctxErr.message);
+    }
     // 診断モードOFFでも状態を常時表示する。
     // raw= が 0.000 のままならマイクから無音しか届いていない（他アプリがマイクを
     // 占有している等）、raw は動くのに vol が小さいなら判定側の問題、と切り分けられる。
@@ -2470,6 +2504,14 @@ async function startCapture(){
     statusTimer=setInterval(()=>{
       const st=document.getElementById('micStatus');
       if(!st) return;
+      // タップして話す方式では音量しきい値は無関係。録れている「量」だけが意味を持つ。
+      if(cfg.micMode==='ptt'){
+        const kb = recChunks.reduce((a,c)=>a+c.size,0)/1024;
+        st.textContent = (pttActive?'●録音中 ':'待機 ')
+          + (mediaRec ? `${kb.toFixed(0)}KB` : `buf${dbgBuf.toFixed(1)}s`)
+          + ` vol${dbgVol.toFixed(0)} [b${BUILD}]`;
+        return;
+      }
       st.textContent=`vol${dbgVol.toFixed(1)}/floor${(noiseFloor||0).toFixed(1)}`
         +`/thr${((noiseFloor||0)+cfg.volThr).toFixed(1)} buf${dbgBuf.toFixed(1)}s [b${BUILD}]`;
     },400);
@@ -2487,6 +2529,10 @@ async function startCapture(){
 function stopCapture(){
   recState='idle';
   stopKeepAwake();
+  // 送信待ちのまま止められた場合は捨てる。onstop を外してから止めないと
+  // ストリームが閉じた後に送信が走る。
+  if(mediaRec){ try{ mediaRec.onstop=null; mediaRec.stop(); }catch(e){} mediaRec=null; }
+  recChunks=[]; clearTimeout(pttMaxTimer);
   if(processor){processor.disconnect();processor=null;}
   if(analyser){analyser.disconnect();analyser=null;}
   if(audioCtx){audioCtx.close();audioCtx=null;}
@@ -2542,11 +2588,22 @@ async function flushSeg(){
   dbg(`送信中 ${(segBuffer.length/sr).toFixed(1)}s @${sr}Hz…`);
   const buf=segBuffer.slice(); segBuffer=[]; isVoice=false; silenceStart=null;
   const wav=encodeWAV(buf, sr);
-  const blob=new Blob([wav],{type:'audio/wav'});
+  return sendAudio(new Blob([wav],{type:'audio/wav'}), 'audio.wav');
+}
+
+// 音声の作り方（WAV手組み / MediaRecorder）に関係なく、送信から記録までは同じ道を通す
+async function sendAudio(blob, filename){
+  // 無音や極小データを送ってもWhisperは空文字を返すだけで、原因が見えない。
+  // 何バイト録れたのかを先に見せる：ここが小さければ録音側、十分なら認識側の問題。
+  if(blob.size < 2000){
+    setTranscript(`録音できていません（${blob.size}バイト）`, false);
+    return;
+  }
+  dbg(`送信 ${(blob.size/1024).toFixed(0)}KB ${filename}`);
   // Whisper送信（レート制限は自動リトライ、最大2回）
   async function transcribe(attempt){
     const fd=new FormData();
-    fd.append('file',blob,'audio.wav');
+    fd.append('file',blob,filename);
     fd.append('model',cfg.model);
     fd.append('response_format','text');
     fd.append('temperature','0');
@@ -2770,14 +2827,47 @@ function setUiTalking(on){
 
 function startTalking(){
   if(recState!=='live') return;
+  segBuffer=[]; recChunks=[];
+  // MediaRecorder が使えるならそちらで録る（AudioContextの状態に依存しない）
+  if(mediaStream && window.MediaRecorder){
+    try {
+      const mime = pickRecorderMime();
+      mediaRec = mime ? new MediaRecorder(mediaStream,{mimeType:mime})
+                      : new MediaRecorder(mediaStream);
+      mediaRec.ondataavailable = ev => { if(ev.data && ev.data.size) recChunks.push(ev.data); };
+      mediaRec.onerror = ev => { setTranscript('録音エラー：'+(ev.error&&ev.error.name||'不明'), false); };
+      // 250msごとにチャンクを受け取る。溜まったKB数がそのまま
+      // 「本当に録れているか」の証拠になり、状態表示に出せる。
+      mediaRec.start(250);
+      dbg('MediaRecorder '+(mediaRec.mimeType||'既定'));
+    } catch(e){
+      // 失敗したら ScriptProcessor 経由（segBuffer）にそのまま落ちる
+      mediaRec = null;
+      dbg('MediaRecorder不可: '+e.message);
+    }
+  }
   pttActive=true; setUiTalking(true);
+  // 止め忘れても必ず送る。ポケットに入れたまま録り続ける事故を防ぐ。
+  clearTimeout(pttMaxTimer);
+  pttMaxTimer=setTimeout(()=>{ if(pttActive) stopTalking(); }, MAX_SEG_SEC*1000);
   if(navigator.vibrate) navigator.vibrate(15);
 }
 
 function stopTalking(){
-  pttActive=false; setUiTalking(false);
+  pttActive=false; setUiTalking(false); clearTimeout(pttMaxTimer);
   setTranscript('送信中…', false);
   clearTimeout(segTimer);
+  if(mediaRec && mediaRec.state !== 'inactive'){
+    const rec = mediaRec; mediaRec = null;
+    // stop() の後に最後のチャンクが届くので、必ず onstop まで待ってから送る
+    rec.onstop = () => {
+      const type = rec.mimeType || 'audio/mp4';
+      sendAudio(new Blob(recChunks,{type}), mimeToFilename(type));
+      recChunks = [];
+    };
+    try { rec.stop(); } catch(e){ setTranscript('録音停止に失敗しました',false); }
+    return;
+  }
   flushSeg();
 }
 
