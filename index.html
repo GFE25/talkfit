@@ -316,7 +316,13 @@ input, select, textarea { font-family: inherit; }
 .sets-header {
   display: flex; justify-content: space-between; align-items: center; padding: 12px 0 8px;
 }
-.sets-title { font-size: 12px; font-weight: 600; color: var(--fg2); text-transform: uppercase; letter-spacing: 0.06em; }
+.sets-title { font-size: 12px; font-weight: 600; color: var(--fg2); text-transform: uppercase; letter-spacing: 0.06em; margin-right: auto; }
+/* リセットは押し間違えると痛い操作なので、+ より控えめに置く */
+.reset-btn {
+  padding: 5px 10px; margin-right: 8px; border-radius: 100px;
+  font-size: 12px; color: var(--fg3); border: 1px solid var(--border2);
+}
+.reset-btn:active { color: var(--red); border-color: var(--red); }
 .add-btn {
   width: 30px; height: 30px; border-radius: 50%;
   background: var(--accent); color: #fff; font-size: 22px; line-height: 1;
@@ -642,6 +648,7 @@ input, select, textarea { font-family: inherit; }
       <div class="sets-section">
         <div class="sets-header">
           <div class="sets-title">今日の記録</div>
+          <button class="reset-btn" id="resetToday">リセット</button>
           <button class="add-btn" id="manualBtn" aria-label="手動で追加">+</button>
         </div>
         <div id="setsBody">
@@ -908,7 +915,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 13; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 14; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -1762,6 +1769,20 @@ document.getElementById('resetAll').onclick = () => {
   location.reload();
 };
 
+// 今日ぶんだけのリセット。設定も過去の記録も巻き込まないので気軽に押せる。
+// 全消去（resetAll）は設定画面の奥に置いてある。
+document.getElementById('resetToday').onclick = () => {
+  const n = todaySets().length;
+  if(!n){ toast('今日の記録はまだありません','bad'); return; }
+  if(!confirm(`今日の記録 ${n}件 を消しますか？\n過去の記録と設定は残ります。`)) return;
+  const todayIds = new Set(todaySets().map(s=>s.id));
+  state.sets = state.sets.filter(s=>!todayIds.has(s.id));
+  state.sessionStart = null;
+  state.lastExercise = null;
+  saveState(); render();
+  toast(`今日の記録 ${n}件 を消しました`,'good');
+};
+
 // ───── 記録の追加・修正 ─────
 // 同じシートを「追加」と「修正」の両方に使う。editingId が入っていれば修正モード。
 let editingId = null;
@@ -2102,6 +2123,41 @@ function localParse(raw) {
     if (t2) reps = parseInt(t2[1], 10);
   }
 
+  // ── 単位が落ちた発話の救済 ──
+  // ジムで「80キロ5回」と律儀に言う人はいない。「スクワット80×5」「80 5」が普通の言い方で、
+  // Whisperも「×」「かける」「、」「空白」と揺れて書き起こす。
+  // 単位付きで何も取れなかった時に限り、数字の並びだけから意味を割り当てる。
+  // strip() は空白や記号を消して「805」にしてしまうので、必ず t（未strip）から拾う。
+  if (weight===null && reps===null && seconds===null && setCount===null) {
+    const nums = (t.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
+    const timeMode = (exDef && exDef.time) || (!exDef && ctx.def && ctx.def.time);
+    const bwMode   = (exDef && exDef.bw)   || (!exDef && ctx.def && ctx.def.bw);
+    // 桁を間違えた聞き取りを記録してしまわないよう、現実的な範囲だけ受け入れる
+    const okW = v => v >= 1   && v <= 500;
+    const okR = v => v >= 1   && v <= 200  && Number.isInteger(v);
+    const okS = v => v >= 1   && v <= 20   && Number.isInteger(v);
+    const okT = v => v >= 1   && v <= 3600;
+    if (nums.length === 1) {
+      // 「10」だけ ＝ 何の数字かは文脈が決める。プランク中なら秒、それ以外は回数。
+      if (timeMode) { if (okT(nums[0])) seconds = nums[0]; }
+      else          { if (okR(nums[0])) reps    = nums[0]; }
+    } else if (nums.length === 2) {
+      // 自重・時間種目に重量はない。「腕立て20×3」は 20回を3セット の意味になる。
+      if (bwMode || timeMode) {
+        if (timeMode) { if (okT(nums[0])) seconds = nums[0]; }
+        else          { if (okR(nums[0])) reps    = nums[0]; }
+        if (okS(nums[1])) setCount = nums[1];
+      } else if (okW(nums[0]) && okR(nums[1])) {
+        weight = nums[0]; reps = nums[1];
+      }
+    } else if (nums.length === 3) {
+      // 「80×5×3」＝ 重量×回数×セット
+      if (okW(nums[0]) && okR(nums[1]) && okS(nums[2])) {
+        weight = nums[0]; reps = nums[1]; setCount = nums[2];
+      }
+    }
+  }
+
   // 「違う、インクライン」→ 直前の記録の修正
   if (RE_FIX.test(tm)) {
     if (exercise || weight!==null || reps!==null || seconds!==null) {
@@ -2118,14 +2174,6 @@ function localParse(raw) {
   // 数字が一切ない＝雑談
   if (!/\d/.test(tm)) return { _noise:true };
   if (CHATTER.test(tm) && reps===null && seconds===null && weight===null) return { _noise:true };
-
-  // 数値だけ（「10」）→ 文脈で意味を決める。
-  // プランクやランニングの最中なら「10」は秒数、それ以外は回数。
-  if (reps===null && seconds===null && weight===null && /^\d+$/.test(tm)) {
-    const n = parseInt(tm, 10);
-    const timeMode = (exDef && exDef.time) || (!exDef && ctx.def && ctx.def.time);
-    if (timeMode) seconds = n; else reps = n;
-  }
 
   if (reps === null && seconds === null) return null;   // 解釈不能 → Claudeへ
 
@@ -2216,6 +2264,11 @@ let recState='idle';
 let audioCtx,analyser,mediaStream,processor;
 let segBuffer=[],segTimer,isVoice=false,silenceStart=null;
 let noiseFloor=null;   // 周囲の騒音レベル（自動追従）
+// 語頭の子音（「ス」クワットの ス など）は音量が小さく、しきい値を超えるのは
+// 母音に入ってから。検出した瞬間から録り始めると語頭が欠け、Whisperは
+// 「クワット」を別語に化かす。常に直前を持っておき、遡って足す。
+let preRoll=[];
+const PREROLL_SEC = 0.35;
 let elapsedTimer;
 let keepAwakeOsc=null, keepAwakeGain=null;
 
@@ -2332,6 +2385,8 @@ async function startCapture(){
         }
       }
       if(speaking){
+        // 発話の立ち上がりでだけ、溜めておいた直前の音を先に流し込む
+        if(!isVoice){ for(let i=0;i<preRoll.length;i++) segBuffer.push(preRoll[i]); preRoll.length=0; }
         segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
         clearTimeout(segTimer); isVoice=true; silenceStart=null;
         segTimer=setTimeout(flushSeg,cfg.silenceMs);
@@ -2344,10 +2399,16 @@ async function startCapture(){
         segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
         if(!silenceStart) silenceStart=Date.now();
         if(Date.now()-silenceStart>cfg.silenceMs){ clearTimeout(segTimer); flushSeg(); }
+      } else {
+        // 待機中は直前 PREROLL_SEC 秒だけを保持し続ける
+        const srP=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
+        for(let i=0;i<ch.length;i++) preRoll.push(ch[i]);
+        const keep=Math.floor(srP*PREROLL_SEC);
+        if(preRoll.length>keep) preRoll.splice(0, preRoll.length-keep);
       }
     };
     startKeepAwake(); // iOS screen-off fix
-    dbgFrames=0; dbgPeak=0; dbgRawPeak=0; dbgVol=0; noiseFloor=null;
+    dbgFrames=0; dbgPeak=0; dbgRawPeak=0; dbgVol=0; noiseFloor=null; preRoll=[];
     dbg(`起動 ctx=${audioCtx.state} ${audioCtx.sampleRate}Hz`);
     // 診断モードOFFでも状態を常時表示する。
     // raw= が 0.000 のままならマイクから無音しか届いていない（他アプリがマイクを
@@ -2377,7 +2438,7 @@ function stopCapture(){
   if(analyser){analyser.disconnect();analyser=null;}
   if(audioCtx){audioCtx.close();audioCtx=null;}
   if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
-  segBuffer=[]; clearTimeout(segTimer); isVoice=false; silenceStart=null;
+  segBuffer=[]; preRoll=[]; clearTimeout(segTimer); isVoice=false; silenceStart=null;
   clearInterval(elapsedTimer); clearInterval(statusTimer); statusTimer=null; setUiLive(false);
 }
 
@@ -2410,6 +2471,9 @@ function whisperPrompt(){
   const uniq=[...new Set(terms)].slice(0,45);
   return '筋力トレーニングの記録。種目名・重量・回数を短く話す。'
        + '例：ベンチプレス80キロ10回。100キロ5回。腕立て20回。プランク60秒。'
+       // 単位を言わない「80かける5」を数字のまま書き起こさせる。
+       // 例を出さないと「80回5」等に化けて意味が取れなくなる。
+       + 'スクワット80×5。ベンチプレス100×3×5。'
        + '種目名：'+uniq.join('、')+'。';
 }
 
@@ -2474,12 +2538,17 @@ async function flushSeg(){
   let text;
   try { text = await transcribe(0); }
   catch(e){ toast('通信エラー','bad'); return; }
-  if(!text||text.length<2) return;
+  // 黙って捨てると「言ったのに反映されない」としか見えない。必ず結果を返す。
+  if(!text||text.length<2){ setTranscript('聞き取れませんでした',false); return; }
   setTranscript(text,false);
   let parsed;
   try{ parsed=await parseUtterance(text); }
   catch(e){ toast('解析できませんでした','bad'); return; }
-  if(!parsed) return;
+  if(!parsed){
+    // 数字を含む発話は記録するつもりだったはず。無反応で終わらせない。
+    if(/\d/.test(text)) setTranscript(text+' → 記録できず',false);
+    return;
+  }
   if(parsed.exercise) parsed.exercise=applyAlias(parsed.exercise);
 
   // 「取り消し」「今の消して」＝直前の記録を削除
