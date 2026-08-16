@@ -336,6 +336,15 @@ input, select, textarea { font-family: inherit; }
 .set-reps { font-family: var(--mono); font-size: 13px; color: var(--fg2); }
 .set-delete { padding: 4px; color: var(--fg3); font-size: 15px; }
 .set-delete:active { color: var(--red); }
+.set-group { margin-bottom: 14px; }
+.set-group-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; padding: 6px 0 2px;
+}
+.set-group-name { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+.set-group-meta { font-family: var(--mono); font-size: 11px; color: var(--fg3); }
+.set-editable { cursor: pointer; }
+.set-editable:active { background: var(--border); }
 .sets-empty { text-align: center; padding: 28px 0; color: var(--fg3); font-size: 14px; line-height: 1.9; }
 
 /* ══════════════════════════
@@ -798,20 +807,26 @@ input, select, textarea { font-family: inherit; }
 <!-- Manual Add Sheet -->
 <div class="sheet" id="sheetManual">
   <div class="sheet-handle"></div>
-  <h3>手動入力</h3>
+  <h3 id="mTitle">手動入力</h3>
   <div class="form-group">
     <label class="form-label">種目</label>
-    <input class="form-input" id="mEx" placeholder="ベンチプレス"/>
+    <input class="form-input" id="mEx" placeholder="ベンチプレス" list="exList"/>
+    <datalist id="exList"></datalist>
   </div>
   <div class="form-group">
-    <label class="form-label">重量（kg）</label>
+    <label class="form-label">重量（kg）<span style="opacity:.5">自重種目は空欄</span></label>
     <input class="form-input" id="mW" type="number" inputmode="decimal" placeholder="80"/>
   </div>
   <div class="form-group">
     <label class="form-label">回数</label>
     <input class="form-input" id="mR" type="number" inputmode="numeric" placeholder="10"/>
   </div>
+  <div class="form-group">
+    <label class="form-label">秒数（プランク等）</label>
+    <input class="form-input" id="mS" type="number" inputmode="numeric" placeholder="60"/>
+  </div>
   <button class="btn-primary" id="mSave">追加</button>
+  <button class="btn-secondary" id="mDelete" style="display:none;color:#FF6B6B">この記録を削除</button>
   <button class="btn-secondary" id="mClose">キャンセル</button>
 </div>
 
@@ -820,7 +835,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 11; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 12; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -835,27 +850,89 @@ const GROUPS = {
   core:     { label:'腹筋', color:'#FF6B6B', parts:['bm-core'] },
 };
 
-// ── Muscle Keywords (exact user list + common variants) ──
-const MUSCLE_KW = {
-  chest:    ['ベンチプレス','インクライン','ダンベルフライ','腕立て','プッシュアップ','フライ','チェスト','デクライン','ペックデック'],
-  back:     ['ラットプルダウン','バーベルロー','背中','プルダウン','ローイング','デッドリフト','チンアップ','懸垂','ケーブルロウ','フェイスプル'],
-  shoulder: ['ショルダープレス','サイドレイズ','フロントレイズ','シュラッグ','肩','アーノルド','ミリタリー','アップライト'],
-  arm:      ['アームカール','トライセプスプレスダウン','二頭筋','三頭筋','カール','プッシュダウン','トライセプス','ハンマー','スカルクラッシャー','キックバック'],
-  leg:      ['スクワット','レッグプレス','レッグカール','カーフレイズ','デッドリフト','レッグ','ランジ','ヒップ','ブルガリアン','ハムストリング'],
-  core:     ['アブローラー','腹筋','体幹','クランチ','プランク','アブ','レッグレイズ','バイシクル'],
-};
+// ── 種目辞書 ──
+// n=正式名 / a=言い換え（人によって呼び方が違う） / m=部位
+// bw=自重（重量を言わない） / time=時間計測（回数ではなく秒数）
+const EX_DEF = [
+  // 胸
+  {n:'ベンチプレス', a:['ベンチ','ベンプレ','フラットベンチ'], m:'chest'},
+  {n:'インクラインベンチプレス', a:['インクライン','インクラインプレス'], m:'chest'},
+  // 複合名は単独名より長いので、長い語優先の照合で先に当たる（「ダンベルプレス」に吸われない）
+  {n:'インクラインダンベルプレス', a:['インクラインダンベル'], m:'chest'},
+  {n:'ダンベルフライ', a:['フライ'], m:'chest'},
+  {n:'ダンベルプレス', a:['ダンベルベンチ'], m:'chest'},
+  {n:'チェストプレス', a:['チェスト'], m:'chest'},
+  {n:'ペックデック', a:['ペックフライ'], m:'chest'},
+  {n:'腕立て伏せ', a:['腕立て','プッシュアップ'], m:'chest', bw:true},
+  {n:'ディップス', a:['ディップ'], m:'chest', bw:true},
+  // 背中
+  {n:'ラットプルダウン', a:['ラットプル','プルダウン'], m:'back'},
+  {n:'デッドリフト', a:['デッド'], m:'back'},
+  {n:'バーベルロー', a:['ベントオーバーロー','ベントロー'], m:'back'},
+  {n:'ケーブルロウ', a:['シーテッドロー','ローイング','ロウイング'], m:'back'},
+  {n:'懸垂', a:['チンアップ','プルアップ','けんすい'], m:'back', bw:true},
+  {n:'フェイスプル', a:[], m:'back'},
+  // 肩
+  {n:'ショルダープレス', a:['ショルダー','ミリタリープレス','ミリタリー'], m:'shoulder'},
+  {n:'サイドレイズ', a:['サイド','ラテラルレイズ'], m:'shoulder'},
+  {n:'フロントレイズ', a:['フロント'], m:'shoulder'},
+  {n:'リアレイズ', a:['リア','リアデルト'], m:'shoulder'},
+  {n:'シュラッグ', a:['僧帽筋'], m:'shoulder'},
+  // 腕
+  {n:'アームカール', a:['カール','バイセップカール','二頭','二頭筋','上腕二頭筋','ダンベルカール','バーベルカール'], m:'arm'},
+  {n:'ハンマーカール', a:['ハンマー'], m:'arm'},
+  {n:'トライセプスプレスダウン', a:['プレスダウン','プッシュダウン','三頭','三頭筋','上腕三頭筋','トライセプス'], m:'arm'},
+  {n:'スカルクラッシャー', a:['フレンチプレス'], m:'arm'},
+  {n:'キックバック', a:[], m:'arm'},
+  // 脚
+  {n:'スクワット', a:['スクワ','バーベルスクワット'], m:'leg'},
+  {n:'レッグプレス', a:['レッグ'], m:'leg'},
+  {n:'レッグカール', a:['ハムストリング','ハムスト'], m:'leg'},
+  {n:'レッグエクステンション', a:['エクステンション','大腿四頭筋'], m:'leg'},
+  {n:'カーフレイズ', a:['カーフ','ふくらはぎ'], m:'leg'},
+  {n:'ランジ', a:['ブルガリアンスクワット','ブルガリアン'], m:'leg'},
+  {n:'ヒップスラスト', a:['ヒップ','臀筋','お尻'], m:'leg'},
+  // 体幹
+  {n:'腹筋', a:['クランチ','シットアップ','アブ'], m:'core', bw:true},
+  {n:'プランク', a:['フロントブリッジ'], m:'core', bw:true, time:true},
+  {n:'サイドプランク', a:[], m:'core', bw:true, time:true},
+  {n:'アブローラー', a:['腹筋ローラー','ローラー'], m:'core', bw:true},
+  {n:'レッグレイズ', a:['足上げ'], m:'core', bw:true},
+  {n:'バックエクステンション', a:['背筋'], m:'core', bw:true},
+];
+
+// 記号除去。ただし「22.5」の小数点だけは温存する
+// （Whisperは語彙ヒントを与えると「インクライン・ダンベルプレス」のように中黒を挿入する）
+const strip = s => String(s||'')
+  .replace(/(\d)[.,](\d)/g, '$1\u0001$2')
+  .replace(/[・、。･,.\s!！?？「」]/g, '')
+  .replace(/\u0001/g, '.');
+
+// 照合用インデックス（長い語からマッチさせる：「ベンチプレス」＞「ベンチ」）
+const EX_INDEX = (() => {
+  const list = [];
+  for (const e of EX_DEF) {
+    list.push({key:strip(e.n), def:e});
+    for (const al of e.a) list.push({key:strip(al), def:e});
+  }
+  return list.sort((x,y) => y.key.length - x.key.length);
+})();
+
+const EX_BY_NAME = Object.fromEntries(EX_DEF.map(e => [e.n, e]));
+
+// 旧APIとの互換（whisperPrompt等が参照）
+const MUSCLE_KW = (() => {
+  const o = {chest:[],back:[],shoulder:[],arm:[],leg:[],core:[]};
+  for (const e of EX_DEF) { o[e.m].push(e.n); o[e.m].push(...e.a); }
+  return o;
+})();
 
 function detectMuscle(name) {
   if (!name) return null;
-  const n = name;
-  for (const [g, kws] of Object.entries(MUSCLE_KW)) {
-    if (kws.some(k => n.includes(k))) return g;
-  }
-  // Fallback: loose match
-  const nl = n.toLowerCase();
-  for (const [g, kws] of Object.entries(MUSCLE_KW)) {
-    if (kws.some(k => nl.includes(k.toLowerCase()))) return g;
-  }
+  const d = EX_BY_NAME[name];
+  if (d) return d.m;
+  const tm = strip(name);
+  for (const e of EX_INDEX) if (e.key && tm.includes(e.key)) return e.def.m;
   return null;
 }
 
@@ -894,7 +971,9 @@ const DEF_CFG = {
   apiKey:'',        // OpenAI（Whisper音声認識用）
   claudeKey:'',     // Claude（発話解析用）
   model:'whisper-1',
-  silenceMs:1200, volThr:12, volThrMode:'floor', lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
+  // 無音判定は短いほど反応が速い。700msあれば「ベンチプレス80キロ10回」の
+  // 途中の息継ぎでは切れず、言い終わりからの待ち時間は体感で半減する。
+  silenceMs:700, volThr:12, volThrMode:'floor', lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
 };
 // 範囲外・空文字・NaNを既定値に丸める
 function numOr(v, def, min, max) {
@@ -911,14 +990,17 @@ cfg.volThr    = numOr(cfg.volThr,    DEF_CFG.volThr,    1,   100);
 // 旧仕様で保存された値は互換性がない。APIキー等は保持したまま一度だけ移行する。
 // 判定対象は保存済みデータ。cfg 側を見ると既定値に隠れて移行が発動しない。
 if (savedCfg.volThrMode !== 'floor') { cfg.volThr = DEF_CFG.volThr; cfg.volThrMode = 'floor'; saveCfg(); }
+// 応答速度の既定値変更（1200ms→700ms）を、一度だけ既存端末にも反映する
+if (savedCfg.cfgVer !== 12) { cfg.silenceMs = DEF_CFG.silenceMs; cfg.cfgVer = 12; saveCfg(); }
 if (!cfg.model) cfg.model = DEF_CFG.model;
 if (!cfg.lang && cfg.lang !== '') cfg.lang = DEF_CFG.lang;
 
 const state = Object.assign({
-  sessionStart:null, sets:[], lastExercise:null, sessions:[], weights:[],
+  sessionStart:null, sets:[], lastExercise:null, sessions:[], weights:[], lastWeightBy:{},
 }, JSON.parse(localStorage.getItem(LS_KEY)||'{}'));
 // ensure weights array exists for legacy data
 if (!state.weights) state.weights = [];
+if (!state.lastWeightBy) state.lastWeightBy = {};
 
 let curPeriod = 'day'; // 'day' | 'week' | 'month'
 
@@ -1016,26 +1098,55 @@ function renderRecord() {
     body.innerHTML = ''; body.appendChild(empty); empty.style.display='block'; return;
   }
   empty.style.display = 'none';
-  body.innerHTML = sets.slice().reverse().slice(0,25).map(s => {
-    const t = new Date(s.ts);
-    const tStr = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-    const pending = !s.exercise || s.weight==null || s.reps==null;
-    return `<div class="set-row" style="${pending?'opacity:0.45':''}">
-      <div class="set-name-wrap">
-        <div class="set-name">${esc(s.exercise||'不明')}</div>
-        <span class="set-time">${tStr}</span>
+
+  // その日の全セットを、種目ごとにまとめて新しい順に表示する（件数の上限なし）
+  const groups = [];
+  for (const s of sets) {
+    const key = s.exercise || '不明';
+    const last = groups[groups.length-1];
+    if (last && last.key === key) last.items.push(s);
+    else groups.push({key, items:[s]});
+  }
+
+  body.innerHTML = groups.slice().reverse().map(g => {
+    const def = EX_BY_NAME[g.key];
+    const gvol = g.items.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
+    const rows = g.items.map((s,i) => {
+      const t = new Date(s.ts);
+      const tStr = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+      const pending = !s.exercise || (s.reps==null && s.seconds==null);
+      return `<div class="set-row set-editable" data-id="${s.id}" style="${pending?'opacity:0.45':''}">
+        <div class="set-name-wrap">
+          <div class="set-name" style="opacity:.55;font-size:13px">${i+1}セット目</div>
+          <span class="set-time">${tStr}</span>
+        </div>
+        <div class="set-nums">
+          <span class="set-weight">${esc(fmtSet(s))}</span>
+        </div>
+        <button class="set-delete" data-id="${s.id}">✕</button>
+      </div>`;
+    }).join('');
+    return `<div class="set-group">
+      <div class="set-group-head">
+        <span class="set-group-name">${esc(g.key)}</span>
+        <span class="set-group-meta">${g.items.length}セット${gvol?' · '+gvol.toLocaleString()+'kg':''}${def&&def.bw?' · 自重':''}</span>
       </div>
-      <div class="set-nums">
-        <span class="set-weight">${s.weight!=null?s.weight+'kg':'—'}</span>
-        <span class="set-reps">${s.reps!=null?'× '+s.reps:''}</span>
-      </div>
-      <button class="set-delete" data-id="${s.id}">✕</button>
+      ${rows}
     </div>`;
   }).join('');
+
   body.querySelectorAll('.set-delete').forEach(b => {
-    b.onclick = () => {
+    b.onclick = (e) => {
+      e.stopPropagation();
       state.sets = state.sets.filter(s=>s.id!==b.dataset.id);
       saveState(); renderRecord(); renderSummary();
+    };
+  });
+  // タップで修正シートを開く（認識ミスをその場で直せるように）
+  body.querySelectorAll('.set-editable').forEach(el => {
+    el.onclick = () => {
+      const row = state.sets.find(s=>s.id===el.dataset.id);
+      if(row) openSetSheet(row);
     };
   });
 }
@@ -1388,26 +1499,64 @@ document.getElementById('resetAll').onclick = () => {
   location.reload();
 };
 
-// ───── Manual Add ─────
-document.getElementById('manualBtn').onclick = () => {
-  document.getElementById('mEx').value=state.lastExercise||'';
-  document.getElementById('mW').value='';
-  document.getElementById('mR').value='';
+// ───── 手動入力 / 認識ミスの修正 ─────
+// 同じシートを「追加」と「修正」の両方に使う。editingId が入っていれば修正モード。
+let editingId = null;
+
+// 種目名の入力補助
+document.getElementById('exList').innerHTML =
+  EX_DEF.map(e=>`<option value="${esc(e.n)}"></option>`).join('');
+
+function openSetSheet(row) {
+  editingId = row ? row.id : null;
+  document.getElementById('mTitle').textContent = row ? '記録を修正' : '手動入力';
+  document.getElementById('mSave').textContent  = row ? '保存' : '追加';
+  document.getElementById('mDelete').style.display = row ? '' : 'none';
+  document.getElementById('mEx').value = row ? (row.exercise||'') : (state.lastExercise||'');
+  document.getElementById('mW').value  = row && row.weight!=null  ? row.weight  : '';
+  document.getElementById('mR').value  = row && row.reps!=null    ? row.reps    : '';
+  document.getElementById('mS').value  = row && row.seconds!=null ? row.seconds : '';
   openSheet('sheetManual');
+}
+
+document.getElementById('manualBtn').onclick = () => openSetSheet(null);
+document.getElementById('mClose').onclick = () => { editingId=null; closeSheets(); };
+
+document.getElementById('mDelete').onclick = () => {
+  if(!editingId) return;
+  state.sets = state.sets.filter(s=>s.id!==editingId);
+  editingId=null; saveState(); closeSheets(); render();
+  toast('削除しました','good');
 };
-document.getElementById('mClose').onclick = closeSheets;
+
 document.getElementById('mSave').onclick = () => {
-  const ex=document.getElementById('mEx').value.trim();
-  const w=parseFloat(document.getElementById('mW').value);
-  const r=parseInt(document.getElementById('mR').value,10);
-  if(!ex||isNaN(w)||isNaN(r)){ toast('入力が不足しています','bad'); return; }
+  const ex = document.getElementById('mEx').value.trim();
+  const wv = document.getElementById('mW').value.trim();
+  const rv = document.getElementById('mR').value.trim();
+  const sv = document.getElementById('mS').value.trim();
+  const w = wv===''?null:parseFloat(wv);
+  const r = rv===''?null:parseInt(rv,10);
+  const sec = sv===''?null:parseFloat(sv);
+  // 自重種目は重量なしで成立する。回数か秒数のどちらかがあればよい
+  if(!ex || (r===null && sec===null)){ toast('種目と、回数か秒数が必要です','bad'); return; }
+
+  if(editingId){
+    const row = state.sets.find(s=>s.id===editingId);
+    if(row){ row.exercise=ex; row.weight=w; row.reps=r; row.seconds=sec; row.edited=true; }
+    editingId=null;
+    saveState(); closeSheets(); render();
+    toast('修正しました','good');
+    return;
+  }
+
   if(!state.sessionStart) state.sessionStart=Date.now();
-  state.sets.push({id:'m'+Date.now(),ts:Date.now(),exercise:ex,weight:w,reps:r,transcript:'(manual)',raw:{}});
+  const row={id:'m'+Date.now(),ts:Date.now(),exercise:ex,weight:w,reps:r,seconds:sec,transcript:'(manual)',raw:{}};
+  state.sets.push(row);
   state.lastExercise=ex;
   saveState(); closeSheets(); render();
   playSuccessTone();
   if(navigator.vibrate) navigator.vibrate(30);
-  toast(`${ex} ${w}kg × ${r}回 追加`,'good');
+  toast(`${ex} ${fmtSet(row)} 追加`,'good');
 };
 
 // ───── End Session ─────
@@ -1447,6 +1596,7 @@ function normalizeNumbers(t) {
   const kanji = {'〇':0,'零':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
   // 「六十五」「十二」「二十」などの漢数字を数値化
   s = s.replace(/[〇零一二三四五六七八九十百]+/g, m => {
+    if (/^[二三]$/.test(m)) return m;   // 「二頭」「三頭」を数値にしない
     if (!/[十百]/.test(m)) {
       let out=''; for (const c of m) { if (kanji[c]===undefined) return m; out+=kanji[c]; }
       return out;
@@ -1463,64 +1613,88 @@ function normalizeNumbers(t) {
   return s;
 }
 
-// 既知の種目キーワード一覧（MUSCLE_KW＋ユーザー登録の略語）
+// 既知の種目キーワード一覧（辞書＋ユーザー登録の略語）
 function knownExerciseTerms() {
-  const terms = [];
-  for (const kws of Object.values(MUSCLE_KW)) terms.push(...kws);
+  const terms = EX_INDEX.map(e => e.key);
   (cfg.aliases||'').split(/[\n,]/).forEach(line => {
     const [alias, full] = line.split('=').map(x => (x||'').trim());
     if (alias) terms.push(alias);
     if (full) terms.push(full);
   });
-  // 長い語を優先してマッチさせる
   return [...new Set(terms)].sort((a,b) => b.length - a.length);
 }
 
-// ローカル解析：単純パターンをAPIなしで即処理
+// 種目の照合。ユーザー登録の略語を最優先し、次に辞書を長い語から当てる
+function matchExercise(tm) {
+  for (const line of String(cfg.aliases||'').split(/[\n,]/)) {
+    const [a,b] = line.split('=').map(x => strip(x));
+    if (a && b && tm.includes(a)) {
+      const hit = EX_INDEX.find(e => e.key === b);
+      return hit ? hit.def : {n:b, m:detectMuscle(b)};
+    }
+  }
+  for (const e of EX_INDEX) if (e.key && tm.includes(e.key)) return e.def;
+  return null;
+}
+
+// 掛け声・独り言。数値を伴わなければ記録対象外
+const CHATTER = /(以上です|お疲れ|よし|やば|きつ|重い|軽い|あと少し|がんばれ|ちょっと待|すいません|ありがとう)/;
+
+// ローカル解析：ジムでの実発話パターンをAPIなしで即処理
 function localParse(raw) {
-  const t = normalizeNumbers(raw);
+  const t  = normalizeNumbers(String(raw||''));
+  const tm = strip(t);
+  if (!tm) return { _noise:true };
 
   // 制御発話
-  if (/(セット終わり|セット終了|終わり|次[のへ]?$|次！?$)/.test(t.trim())) {
-    return { exercise:null, weight:null, reps:null, set_end:true, note:null, _local:true };
+  if (/^(セット終わり|セット終了|終わり|終了|次|以上|おわり)$/.test(tm)) {
+    return { exercise:null, weight:null, reps:null, seconds:null, set_end:true, note:null, _local:true };
   }
 
-  // 重量：「80キロ」「80kg」「80キロで」
+  const exDef = matchExercise(tm);
+  const exercise = exDef ? exDef.n : null;
+
+  // 秒数（プランク等）：「60秒」「1分」「1分30秒」
+  let seconds = null;
+  const mM = tm.match(/(\d+(?:\.\d+)?)\s*分/);
+  const sM = tm.match(/(\d+(?:\.\d+)?)\s*秒/);
+  if (mM) seconds = parseFloat(mM[1]) * 60;
+  if (sM) seconds = (seconds||0) + parseFloat(sM[1]);
+
+  // 重量
   let weight = null;
-  const wM = t.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|KG|Kg)/);
+  const wM = tm.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|KG|Kg|㎏)/);
   if (wM) weight = parseFloat(wM[1]);
 
-  // 回数：「10回」「10レップ」「10発」
+  // 回数
   let reps = null;
-  const rM = t.match(/(\d+)\s*(?:回|かい|レップ|reps?|発)/);
+  const rM = tm.match(/(\d+)\s*(?:回|かい|レップ|reps?|発)/);
   if (rM) reps = parseInt(rM[1], 10);
 
-  // 「80キロ10」のように単位なしで並ぶケース
-  if (weight !== null && reps === null) {
-    const tail = t.slice(t.indexOf(wM[0]) + wM[0].length);
-    const t2 = tail.match(/(\d+)/);
+  // 「80キロ10」のように後半の単位が落ちた場合
+  if (weight !== null && reps === null && seconds === null) {
+    const tail = tm.slice(tm.indexOf(wM[0]) + wM[0].length);
+    const t2 = tail.match(/^(\d+)/);
     if (t2) reps = parseInt(t2[1], 10);
   }
 
-  // 種目名の抽出
-  // Whisperは語彙ヒントを与えると「インクライン・ダンベルプレス」のように
-  // 中黒や句読点を挿入することがあるため、記号と空白を除去してから照合する。
-  const tm = t.replace(/[・、。･\s]/g, '');
-  let exercise = null;
-  for (const term of knownExerciseTerms()) {
-    const k = term.replace(/[・、。･\s]/g, '');
-    if (k && tm.includes(k)) { exercise = term; break; }
+  // 種目名だけ ＝ 種目の切り替え宣言。記録はせず「次はこれ」を覚えるだけ
+  if (exercise && weight===null && reps===null && seconds===null) {
+    return { exercise, weight:null, reps:null, seconds:null, set_end:false, note:null, switch_only:true, _local:true };
   }
 
-  // 数字が一切なく制御発話でもない＝雑談。API を呼ばずに捨てる
-  if (!/\d/.test(t)) return { _noise:true };
+  // 数字が一切ない＝雑談
+  if (!/\d/.test(tm)) return { _noise:true };
+  if (CHATTER.test(tm) && reps===null && seconds===null && weight===null) return { _noise:true };
 
-  // 回数が取れない、または「キロ」と言っているのに数値が取れない場合は
-  // 言い回しが複雑なのでローカル解析は失敗扱い（Claudeに回す）
-  if (reps === null) return null;
-  if (weight === null && /キロ|きろ|kg|KG|Kg/.test(t)) return null;
+  // 数値だけ（「10」）→ 回数とみなす
+  if (reps===null && seconds===null && weight===null && /^\d+$/.test(tm)) {
+    reps = parseInt(tm, 10);
+  }
 
-  return { exercise, weight, reps, set_end:false, note:null, _local:true };
+  if (reps === null && seconds === null) return null;   // 解釈不能 → Claudeへ
+
+  return { exercise, weight, reps, seconds, set_end:false, note:null, _local:true };
 }
 
 // Claude APIで解析（ローカルで解釈できなかった発話のみ）
@@ -1534,13 +1708,18 @@ async function parseWithClaude(text) {
 - 種目が明示されていない場合は exercise を null に
 - 「同じで」「もう一回」「また」など相対表現は exercise:null weight:null
 - 「セット終わり」「次」など制御発話は set_end:true
+- 腕立て・腹筋・懸垂など自重種目は weight:null（回数だけ）
+- プランクなど時間で計る種目は seconds に秒数（「1分30秒」→90）、reps:null
 - 雑談・無関係な音は全フィールドnull
-- weight, reps は数値または null（文字列は禁止）
+- weight, reps, seconds は数値または null（文字列は禁止）
 - JSONオブジェクトのみを返し、説明文やマークダウンは付けない
+
+種目名の候補: ${EX_DEF.map(e=>e.n).join('、')}
+直前の種目: ${state.lastExercise||'なし'}
 
 発話: "${text}"
 
-キー: exercise(string|null), weight(number|null), reps(number|null), set_end(boolean), note(string|null)`;
+キー: exercise(string|null), weight(number|null), reps(number|null), seconds(number|null), set_end(boolean), note(string|null)`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -1577,12 +1756,12 @@ async function parseUtterance(text) {
     try { return await parseWithClaude(text); } catch(e) { /* 下の緩和処理へ */ }
   }
   // Claude未設定・失敗時：回数だけでも拾えていれば記録する
-  const t = normalizeNumbers(text);
+  const t = strip(normalizeNumbers(text));
   const rM = t.match(/(\d+)\s*(?:回|かい|レップ|reps?|発)/);
-  const wM = t.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|KG|Kg)/);
+  const wM = t.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|KG|Kg|㎏)/);
   if (rM) return {
     exercise:null, weight: wM?parseFloat(wM[1]):null,
-    reps:parseInt(rM[1],10), set_end:false, note:null, _local:true,
+    reps:parseInt(rM[1],10), seconds:null, set_end:false, note:null, _local:true,
   };
   return null;
 }
@@ -1783,15 +1962,19 @@ const MAX_SEG_SEC = 12;
 
 // Whisperに渡す語彙ヒント（whisper-1は224トークンまで考慮する）
 function whisperPrompt(){
+  // 語彙を並べすぎるとヒントが薄まる。いま使っている種目と直近の種目を先頭に置く
   const terms=[];
-  for(const kws of Object.values(MUSCLE_KW)) terms.push(...kws);
+  if(state.lastExercise) terms.push(state.lastExercise);
+  const recent=[...new Set(todaySets().slice(-12).map(s=>s.exercise).filter(Boolean))].reverse();
+  terms.push(...recent);
   (cfg.aliases||'').split(/[\n,]/).forEach(line=>{
     const [a,b]=line.split('=').map(x=>(x||'').trim());
     if(b) terms.push(b); else if(a) terms.push(a);
   });
-  const uniq=[...new Set(terms)].slice(0,60);
+  for(const e of EX_DEF) terms.push(e.n);
+  const uniq=[...new Set(terms)].slice(0,45);
   return '筋力トレーニングの記録。種目名・重量・回数を短く話す。'
-       + '例：ベンチプレス80キロ10回。スクワット100キロ5回。'
+       + '例：ベンチプレス80キロ10回。100キロ5回。腕立て20回。プランク60秒。'
        + '種目名：'+uniq.join('、')+'。';
 }
 
@@ -1863,22 +2046,55 @@ async function flushSeg(){
   catch(e){ toast('解析できませんでした','bad'); return; }
   if(!parsed) return;
   if(parsed.exercise) parsed.exercise=applyAlias(parsed.exercise);
+
+  // 種目名だけの発話＝次の種目の宣言。記録はせず状態だけ切り替える
+  if(parsed.switch_only){
+    state.lastExercise=parsed.exercise; saveState();
+    setTranscript('種目 → '+parsed.exercise, true);
+    if(navigator.vibrate) navigator.vibrate(15);
+    return;
+  }
+
+  // 2セット目以降は種目名を言わないことが多い。直前の種目を引き継ぐ
   if(!parsed.exercise&&state.lastExercise) parsed.exercise=state.lastExercise;
   if(parsed.exercise) state.lastExercise=parsed.exercise;
-  if(parsed.weight!=null||parsed.reps!=null){
+
+  const def = parsed.exercise ? EX_BY_NAME[parsed.exercise] : null;
+
+  // 重量の引き継ぎ：「10回」だけ言われたら前回と同じ重さとみなす
+  state.lastWeightBy = state.lastWeightBy || {};
+  if(def && def.bw){
+    parsed.weight = null;                       // 自重種目は重量を持たない
+  } else if(parsed.weight==null && parsed.exercise && state.lastWeightBy[parsed.exercise]!=null){
+    parsed.weight = state.lastWeightBy[parsed.exercise];
+    parsed.weight_inherited = true;
+  }
+  if(parsed.weight!=null && parsed.exercise) state.lastWeightBy[parsed.exercise]=parsed.weight;
+
+  if(parsed.weight!=null||parsed.reps!=null||parsed.seconds!=null){
     const row={
       id:'r'+Date.now()+Math.random().toString(36).slice(2,6),
       ts:Date.now(), exercise:parsed.exercise||null,
-      weight:parsed.weight, reps:parsed.reps, transcript:text, raw:parsed,
+      weight:parsed.weight, reps:parsed.reps, seconds:parsed.seconds??null,
+      transcript:text, raw:parsed,
     };
     state.sets.push(row); saveState();
-    setTranscript(`${row.exercise||'?'} · ${row.weight??'?'}kg × ${row.reps??'?'}`,true);
+    setTranscript(`${row.exercise||'?'} · ${fmtSet(row)}`,true);
     render();
     playSuccessTone();
     if(navigator.vibrate) navigator.vibrate(30);
   } else if(parsed.note){
     setTranscript('NOTE: '+parsed.note,false);
   }
+}
+
+// セットの数値部分の表記：自重は回数のみ、プランクは秒数
+function fmtSet(s){
+  if(s.seconds!=null) return s.seconds>=60
+    ? `${Math.floor(s.seconds/60)}分${s.seconds%60?(s.seconds%60)+'秒':''}`
+    : `${s.seconds}秒`;
+  const w = s.weight!=null ? s.weight+'kg × ' : '';
+  return w + (s.reps!=null ? s.reps+'回' : '?');
 }
 
 function setTranscript(text,parsed){
