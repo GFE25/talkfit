@@ -771,6 +771,14 @@ input, select, textarea { font-family: inherit; }
     <div class="form-help">ジムが騒がしければ上げる</div>
   </div>
   <div class="form-group">
+    <label class="form-label">診断モード</label>
+    <select class="form-select" id="debugMode">
+      <option value="off">OFF — 通常表示</option>
+      <option value="on">ON — 音量・送信状況を表示</option>
+    </select>
+    <div class="form-help">録音が動かない時にON。マイクの音量・しきい値・送信結果が画面に出ます</div>
+  </div>
+  <div class="form-group">
     <label class="form-label">言語ヒント</label>
     <select class="form-select" id="lang">
       <option value="ja">日本語</option>
@@ -885,7 +893,7 @@ const cfg = Object.assign({
   apiKey:'',        // OpenAI（Whisper音声認識用）
   claudeKey:'',     // Claude（発話解析用）
   model:'whisper-1',
-  silenceMs:1200, volThr:3, lang:'ja', aliases:'', musicMode:'on',
+  silenceMs:1200, volThr:3, lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
 }, JSON.parse(localStorage.getItem(LS_CFG)||'{}'));
 
 const state = Object.assign({
@@ -1312,6 +1320,7 @@ document.getElementById('settingsBtn').onclick = () => {
   document.getElementById('silenceMs').value=cfg.silenceMs;
   document.getElementById('volThr').value=cfg.volThr;
   document.getElementById('lang').value=cfg.lang;
+  document.getElementById('debugMode').value=cfg.debugMode||'off';
   document.getElementById('aliases').value=cfg.aliases;
   openSheet('sheetSettings');
 };
@@ -1324,6 +1333,7 @@ document.getElementById('saveSettings').onclick = async () => {
   cfg.silenceMs=+document.getElementById('silenceMs').value;
   cfg.volThr=+document.getElementById('volThr').value;
   cfg.lang=document.getElementById('lang').value;
+  cfg.debugMode=document.getElementById('debugMode').value;
   cfg.aliases=document.getElementById('aliases').value;
   saveCfg();
 
@@ -1549,6 +1559,16 @@ async function parseUtterance(text) {
 }
 
 // ───── Audio ─────
+// 診断表示：録音が動かない時に「どこで止まっているか」を画面で見えるようにする
+let dbgFrames=0, dbgPeak=0, dbgHoldUntil=0;
+function dbg(msg, holdMs){
+  if(cfg.debugMode!=='on') return;
+  if(!holdMs && Date.now()<dbgHoldUntil) return; // 認識結果を上書きしない
+  if(holdMs) dbgHoldUntil=Date.now()+holdMs;
+  const p=document.getElementById('transcriptPill');
+  if(p){ p.textContent=msg; p.className='transcript-pill'; }
+}
+
 let recState='idle';
 let audioCtx,analyser,mediaStream,processor;
 let segBuffer=[],segTimer,isVoice=false,silenceStart=null;
@@ -1620,6 +1640,12 @@ async function startCapture(){
     audioCtx=new (window.AudioContext||window.webkitAudioContext)({
       latencyHint:'playback',
     });
+    // iOS Safari: await getUserMedia を挟むとユーザー操作の文脈が切れ、
+    // AudioContextがsuspendedのまま生成される。resumeしないと
+    // onaudioprocessが一度も発火せず「録音中なのに何も起きない」状態になる。
+    if(audioCtx.state==='suspended'){
+      try { await audioCtx.resume(); } catch(e) {}
+    }
     analyser=audioCtx.createAnalyser(); analyser.fftSize=2048;
     const src=audioCtx.createMediaStreamSource(mediaStream);
     processor=audioCtx.createScriptProcessor(4096,1,1);
@@ -1637,6 +1663,15 @@ async function startCapture(){
       const vol = count>0 ? sum/count : 0;
       updateBars(freqData);
       const speaking=vol>cfg.volThr;
+      if(cfg.debugMode==='on'){
+        dbgFrames++;
+        if(vol>dbgPeak) dbgPeak=vol;
+        if(dbgFrames%5===0){
+          const sr0=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
+          dbg(`音量${vol.toFixed(1)} 最大${dbgPeak.toFixed(1)} 基準${cfg.volThr} `
+             +`${speaking?'●検出':'待機'} buf${(segBuffer.length/sr0).toFixed(1)}s`);
+        }
+      }
       if(speaking){
         segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
         clearTimeout(segTimer); isVoice=true; silenceStart=null;
@@ -1648,6 +1683,8 @@ async function startCapture(){
       }
     };
     startKeepAwake(); // iOS screen-off fix
+    dbgFrames=0; dbgPeak=0;
+    dbg(`起動 ctx=${audioCtx.state} ${audioCtx.sampleRate}Hz`);
     if(!state.sessionStart) state.sessionStart=Date.now();
     recState='live'; setUiLive(true); saveState();
     elapsedTimer=setInterval(()=>{
@@ -1684,7 +1721,11 @@ const MIN_SEG_SEC = 0.4;
 
 async function flushSeg(){
   const sr = (audioCtx && audioCtx.sampleRate) ? audioCtx.sampleRate : 44100;
-  if(segBuffer.length < sr * MIN_SEG_SEC){ segBuffer=[]; isVoice=false; silenceStart=null; return; }
+  if(segBuffer.length < sr * MIN_SEG_SEC){
+    dbg(`短すぎて破棄 ${(segBuffer.length/sr).toFixed(2)}s (下限${MIN_SEG_SEC}s)`);
+    segBuffer=[]; isVoice=false; silenceStart=null; return;
+  }
+  dbg(`送信中 ${(segBuffer.length/sr).toFixed(1)}s @${sr}Hz…`);
   const buf=segBuffer.slice(); segBuffer=[]; isVoice=false; silenceStart=null;
   const wav=encodeWAV(buf, sr);
   const blob=new Blob([wav],{type:'audio/wav'});
@@ -1761,6 +1802,7 @@ async function flushSeg(){
 }
 
 function setTranscript(text,parsed){
+  dbgHoldUntil=Date.now()+4000; // 診断モード中も結果を4秒間は保持する
   const p=document.getElementById('transcriptPill');
   p.textContent=text;
   p.className='transcript-pill'+(parsed?' parsed':'');
