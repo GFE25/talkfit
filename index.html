@@ -820,6 +820,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
+const BUILD = 7; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -1663,9 +1664,9 @@ async function startCapture(){
       const vol = count>0 ? sum/count : 0;
       updateBars(freqData);
       const speaking=vol>cfg.volThr;
+      dbgFrames++;                      // 発火回数は常に数える（診断の要）
+      if(vol>dbgPeak) dbgPeak=vol;
       if(cfg.debugMode==='on'){
-        dbgFrames++;
-        if(vol>dbgPeak) dbgPeak=vol;
         if(dbgFrames%5===0){
           const sr0=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
           dbg(`音量${vol.toFixed(1)} 最大${dbgPeak.toFixed(1)} 基準${cfg.volThr} `
@@ -1685,6 +1686,12 @@ async function startCapture(){
     startKeepAwake(); // iOS screen-off fix
     dbgFrames=0; dbgPeak=0;
     dbg(`起動 ctx=${audioCtx.state} ${audioCtx.sampleRate}Hz`);
+    // 診断モードOFFでも、音声系が起動したかは常に確認できるようにする
+    setTimeout(()=>{
+      const st=document.getElementById('micStatus');
+      if(st) st.textContent=`ctx=${audioCtx?audioCtx.state:'none'} `
+        +`${audioCtx?audioCtx.sampleRate:0}Hz frames=${dbgFrames} [build ${BUILD}]`;
+    },1500);
     if(!state.sessionStart) state.sessionStart=Date.now();
     recState='live'; setUiLive(true); saveState();
     elapsedTimer=setInterval(()=>{
@@ -1845,7 +1852,8 @@ function setUiLive(live){
   }
 
   const st = document.getElementById('micStatus');
-  st.textContent = live ? '小声でOK・自動で記録しています' : '';
+  // ビルド番号を常時表示：実機が新旧どちらのコードを動かしているか一目で分かるようにする
+  st.textContent = (live ? '小声でOK・自動で記録しています' : '') + `  [build ${BUILD}]`;
   st.classList.toggle('live', live);
 }
 
