@@ -766,9 +766,9 @@ input, select, textarea { font-family: inherit; }
     <div class="form-help">話し終えてからこの時間後にセグメント送信</div>
   </div>
   <div class="form-group">
-    <label class="form-label">音量しきい値（0–100）</label>
-    <input class="form-input" type="number" id="volThr" step="1" min="1" max="50"/>
-    <div class="form-help">ジムが騒がしければ上げる</div>
+    <label class="form-label">声の検出感度（周囲の騒音+いくつ）</label>
+    <input class="form-input" type="number" id="volThr" step="1" min="1" max="60"/>
+    <div class="form-help">周囲の騒音レベルは自動測定します。ここはその上にどれだけ大きい音を「声」とみなすかの余裕幅。誤検出が多ければ上げ、拾わなければ下げる（既定12）</div>
   </div>
   <div class="form-group">
     <label class="form-label">診断モード</label>
@@ -820,7 +820,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 9; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 10; // 実機が動かしているコードの世代を特定するための番号
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -894,7 +894,7 @@ const DEF_CFG = {
   apiKey:'',        // OpenAI（Whisper音声認識用）
   claudeKey:'',     // Claude（発話解析用）
   model:'whisper-1',
-  silenceMs:1200, volThr:3, lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
+  silenceMs:1200, volThr:12, volThrMode:'floor', lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
 };
 // 範囲外・空文字・NaNを既定値に丸める
 function numOr(v, def, min, max) {
@@ -906,6 +906,9 @@ const cfg = Object.assign({}, DEF_CFG, JSON.parse(localStorage.getItem(LS_CFG)||
 // 既に壊れた値が保存されている端末を自動修復する
 cfg.silenceMs = numOr(cfg.silenceMs, DEF_CFG.silenceMs, 200, 5000);
 cfg.volThr    = numOr(cfg.volThr,    DEF_CFG.volThr,    1,   100);
+// volThr の意味を「絶対音量」から「周囲の騒音＋余裕幅」に変更したため、
+// 旧仕様で保存された値は互換性がない。APIキー等は保持したまま一度だけ移行する。
+if (cfg.volThrMode !== 'floor') { cfg.volThr = DEF_CFG.volThr; cfg.volThrMode = 'floor'; saveCfg(); }
 if (!cfg.model) cfg.model = DEF_CFG.model;
 if (!cfg.lang && cfg.lang !== '') cfg.lang = DEF_CFG.lang;
 
@@ -1580,7 +1583,7 @@ async function parseUtterance(text) {
 
 // ───── Audio ─────
 // 診断表示：録音が動かない時に「どこで止まっているか」を画面で見えるようにする
-let dbgFrames=0, dbgPeak=0, dbgHoldUntil=0, dbgVol=0, dbgRawPeak=0, statusTimer=null;
+let dbgFrames=0, dbgPeak=0, dbgHoldUntil=0, dbgVol=0, dbgRawPeak=0, dbgBuf=0, statusTimer=null;
 function dbg(msg, holdMs){
   if(cfg.debugMode!=='on') return;
   if(!holdMs && Date.now()<dbgHoldUntil) return; // 認識結果を上書きしない
@@ -1592,6 +1595,7 @@ function dbg(msg, holdMs){
 let recState='idle';
 let audioCtx,analyser,mediaStream,processor;
 let segBuffer=[],segTimer,isVoice=false,silenceStart=null;
+let noiseFloor=null;   // 周囲の騒音レベル（自動追従）
 let elapsedTimer;
 let keepAwakeOsc=null, keepAwakeGain=null;
 
@@ -1682,7 +1686,15 @@ async function startCapture(){
       for (let i=voiceLoBin; i<=voiceHiBin && i<freqData.length; i++) { sum+=freqData[i]; count++; }
       const vol = count>0 ? sum/count : 0;
       updateBars(freqData);
-      const speaking=vol>cfg.volThr;
+      // 騒音レベルは環境で大きく変わるため固定しきい値では判定できない
+      // （静かな部屋でも周囲音が30を超え、しきい値3では常時「発話中」になる）。
+      // 周囲の騒音(noiseFloor)を追従的に測り、そこから一定以上大きい音だけを声とみなす。
+      // 静かな方へは速く、うるさい方へは遅く追従させ、発話自体に釣られないようにする。
+      if(noiseFloor===null) noiseFloor=vol;
+      else if(vol<noiseFloor) noiseFloor = noiseFloor*0.90 + vol*0.10;
+      else                    noiseFloor = noiseFloor*0.999 + vol*0.001;
+      const speakThr = noiseFloor + cfg.volThr;
+      const speaking = vol > speakThr;
       dbgFrames++;                      // 発火回数は常に数える（診断の要）
       dbgVol=vol;
       if(vol>dbgPeak) dbgPeak=vol;
@@ -1691,6 +1703,7 @@ async function startCapture(){
       const ch=e.inputBuffer.getChannelData(0);
       let pk=0; for(let i=0;i<ch.length;i+=16){ const a=Math.abs(ch[i]); if(a>pk) pk=a; }
       if(pk>dbgRawPeak) dbgRawPeak=pk;
+      dbgBuf=segBuffer.length/((audioCtx&&audioCtx.sampleRate)||44100);
       if(cfg.debugMode==='on'){
         if(dbgFrames%5===0){
           const sr0=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
@@ -1702,6 +1715,11 @@ async function startCapture(){
         segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
         clearTimeout(segTimer); isVoice=true; silenceStart=null;
         segTimer=setTimeout(flushSeg,cfg.silenceMs);
+        // 安全弁：騒音等で「常時発話中」と判定され続けると送信タイマーが
+        // 毎回リセットされ、永久に送信されずバッファだけが膨らむ。
+        // 一定長を超えたら無条件で送信して必ず前に進める。
+        const srNow=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
+        if(segBuffer.length > srNow*MAX_SEG_SEC){ clearTimeout(segTimer); flushSeg(); }
       } else if(isVoice){
         segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
         if(!silenceStart) silenceStart=Date.now();
@@ -1709,7 +1727,7 @@ async function startCapture(){
       }
     };
     startKeepAwake(); // iOS screen-off fix
-    dbgFrames=0; dbgPeak=0; dbgRawPeak=0; dbgVol=0;
+    dbgFrames=0; dbgPeak=0; dbgRawPeak=0; dbgVol=0; noiseFloor=null;
     dbg(`起動 ctx=${audioCtx.state} ${audioCtx.sampleRate}Hz`);
     // 診断モードOFFでも状態を常時表示する。
     // raw= が 0.000 のままならマイクから無音しか届いていない（他アプリがマイクを
@@ -1718,8 +1736,8 @@ async function startCapture(){
     statusTimer=setInterval(()=>{
       const st=document.getElementById('micStatus');
       if(!st) return;
-      st.textContent=`vol${dbgVol.toFixed(1)}/peak${dbgPeak.toFixed(1)}/thr${cfg.volThr}`
-        +` raw${dbgRawPeak.toFixed(3)} f${dbgFrames} [b${BUILD}]`;
+      st.textContent=`vol${dbgVol.toFixed(1)}/floor${(noiseFloor||0).toFixed(1)}`
+        +`/thr${((noiseFloor||0)+cfg.volThr).toFixed(1)} buf${dbgBuf.toFixed(1)}s [b${BUILD}]`;
     },400);
     if(!state.sessionStart) state.sessionStart=Date.now();
     recState='live'; setUiLive(true); saveState();
@@ -1754,6 +1772,8 @@ function updateBars(freqData){
 // OpenAI Whisperの下限は0.1秒。物音による極小セグメント(1フレーム=4096サンプルは
 // 48kHzで僅か85ms)がAPIに送られて400になるのを防ぐため、秒数基準で足切りする。
 const MIN_SEG_SEC = 0.4;
+// 1発話がこれを超えたら強制送信する（無限にバッファが伸びるのを防ぐ安全弁）
+const MAX_SEG_SEC = 12;
 
 async function flushSeg(){
   const sr = (audioCtx && audioCtx.sampleRate) ? audioCtx.sampleRate : 44100;
