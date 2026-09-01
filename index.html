@@ -7,6 +7,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#0C0C0E"/>
+<!-- iOS Safari は index.html を平気で数時間キャッシュする。
+     直したのに直っていないように見える事故を防ぐため、毎回取り直させる。 -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
@@ -598,6 +603,8 @@ input, select, textarea { font-family: inherit; }
       TalkFit
     </div>
     <div class="header-right">
+      <!-- 実機が新しいコードを読めているかを、常に一目で確認できるようにする -->
+      <span id="buildTag" style="font-size:10px;color:var(--fg3);letter-spacing:.04em;">b–</span>
       <div class="status-dot" id="statusDot"></div>
       <button class="icon-btn" id="settingsBtn" aria-label="設定">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -955,7 +962,9 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 18; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 19; // 実機が動かしているコードの世代を特定するための番号
+// ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
+try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
