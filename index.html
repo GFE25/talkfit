@@ -859,12 +859,12 @@ input, select, textarea { font-family: inherit; }
   <div class="form-group">
     <label class="form-label">マイクの入り方</label>
     <select class="form-select" id="micMode">
-      <option value="ptt">タップして話す（確実・音楽OK）</option>
-      <option value="auto">自動検出（ハンズフリー・静かな場所のみ）</option>
+      <option value="auto">ハンズフリー（常時録音・音楽OK）</option>
+      <option value="ptt">タップして話す</option>
     </select>
     <div class="form-help">
-      自動検出は音量で声を判別します。音楽をかけると声と区別できず、
-      記録されたりされなかったりします。音楽を流すなら「タップして話す」を使ってください。
+      ハンズフリーは常時録音して数秒ごとに書き起こし、種目と数字が取れた時だけ記録します。
+      声かどうかを音量で判定しないので、音楽をかけていても動きます。
     </div>
   </div>
   <div class="form-group">
@@ -962,7 +962,7 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 19; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 21; // 実機が動かしているコードの世代を特定するための番号
 // ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
 try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
 const LS_KEY = 'talkfit_state_v3';
@@ -1237,10 +1237,10 @@ const DEF_CFG = {
   // 無音判定は短いほど反応が速い。700msあれば「ベンチプレス80キロ10回」の
   // 途中の息継ぎでは切れず、言い終わりからの待ち時間は体感で半減する。
   silenceMs:700, volThr:12, volThrMode:'floor', lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
-  // マイクの入り方。'ptt'＝タップして話す（確実）、'auto'＝声を検出して自動送信（ハンズフリー）。
-  // 音楽をかけていると auto は原理的に成立しない（下の onaudioprocess のコメント参照）ので、
-  // 既定は ptt。確実に記録できることを、手が空くことより優先する。
-  micMode:'ptt',
+  // マイクの入り方。'auto'＝常時録音（ハンズフリー）、'ptt'＝タップして話す。
+  // auto は「声かどうか」を判定しない。一定時間ごとに区切って全部書き起こし、
+  // 種目と数字が取れた時だけ記録する。判定をやめたので音楽が鳴っていても壊れない。
+  micMode:'auto',
 };
 // 範囲外・空文字・NaNを既定値に丸める
 function numOr(v, def, min, max) {
@@ -1258,7 +1258,10 @@ cfg.volThr    = numOr(cfg.volThr,    DEF_CFG.volThr,    1,   100);
 // 判定対象は保存済みデータ。cfg 側を見ると既定値に隠れて移行が発動しない。
 if (savedCfg.volThrMode !== 'floor') { cfg.volThr = DEF_CFG.volThr; cfg.volThrMode = 'floor'; saveCfg(); }
 // 応答速度の既定値変更（1200ms→700ms）を、一度だけ既存端末にも反映する
-if (savedCfg.cfgVer !== 12) { cfg.silenceMs = DEF_CFG.silenceMs; cfg.cfgVer = 12; saveCfg(); }
+if (savedCfg.cfgVer !== 12 && savedCfg.cfgVer !== 13) { cfg.silenceMs = DEF_CFG.silenceMs; saveCfg(); }
+// 常時録音方式への切り替え。既定値だけ変えても、すでに 'ptt' を保存している
+// 端末には一生届かない（保存値が既定値に勝つ）。一度だけ上書きする。
+if (savedCfg.cfgVer !== 13) { cfg.micMode = DEF_CFG.micMode; cfg.cfgVer = 13; saveCfg(); }
 if (!cfg.model) cfg.model = DEF_CFG.model;
 if (!cfg.lang && cfg.lang !== '') cfg.lang = DEF_CFG.lang;
 
@@ -1772,7 +1775,7 @@ function fillSettingsForm() {
   document.getElementById('apiKey').value=cfg.apiKey||'';
   document.getElementById('claudeKey').value=cfg.claudeKey||'';
   document.getElementById('model').value=cfg.model;
-  document.getElementById('micMode').value=cfg.micMode||'ptt';
+  document.getElementById('micMode').value=cfg.micMode||'auto';
   document.getElementById('musicMode').value=cfg.musicMode;
   document.getElementById('silenceMs').value=cfg.silenceMs;
   document.getElementById('volThr').value=cfg.volThr;
@@ -2296,8 +2299,10 @@ async function parseUtterance(text) {
   if (local && local._noise) return null;   // 雑談：API呼び出しなしで無視
   if (local) return local;                  // 大多数のケースはここで完了（API 0回）
 
-  // ローカルで解釈できない複雑な言い回しのみClaudeへ
-  if (cfg.claudeKey) {
+  // ローカルで解釈できない複雑な言い回しのみClaudeへ。
+  // 常時録音では環境音の区間も書き起こされるので、数字が一つも無いテキストは
+  // 記録になりようがない。ここで止めないとAPI費用と待ち時間だけが積み上がる。
+  if (cfg.claudeKey && /\d/.test(normalizeNumbers(String(text||'')))) {
     try { return await parseWithClaude(text); } catch(e) { /* 下の緩和処理へ */ }
   }
   // Claude未設定・失敗時：回数だけでも拾えていれば記録する
@@ -2325,7 +2330,10 @@ function dbg(msg, holdMs){
 let recState='idle';
 let audioCtx,analyser,mediaStream,processor;
 let segBuffer=[],segTimer,isVoice=false,silenceStart=null;
-let noiseFloor=null;   // 周囲の騒音レベル（自動追従）
+let noiseFloor=null;   // 周囲の騒音レベル（直近数秒の分位点で推定）
+// 1フレーム約85ms。4秒ぶん持てば、発話（2秒前後）が窓を埋め尽くすことはない。
+const VOL_HIST_LEN = 47;
+let volHist=[];
 // 語頭の子音（「ス」クワットの ス など）は音量が小さく、しきい値を超えるのは
 // 母音に入ってから。検出した瞬間から録り始めると語頭が欠け、Whisperは
 // 「クワット」を別語に化かす。常に直前を持っておき、遡って足す。
@@ -2339,6 +2347,9 @@ let pttActive=false;   // 「タップして話す」で録音中か
 // タップして話す方式では音量解析が要らないので、録音は MediaRecorder に任せる。
 // ブラウザが直接ストリームを掴むため、AudioContextの状態に左右されない。
 let mediaRec=null, recChunks=[], pttMaxTimer=null, pttStartAt=0, pttTickTimer=null;
+// ハンズフリー（常時録音）用
+let autoOn=false, chunkStartAt=0, chunkPeakOver=0, chunkQuietAt=0, chunkGuardTimer=null;
+let lastAddSig='', lastAddAt=0;   // 隣り合う区間に同じ発話が入った時の重複よけ
 
 // ── 診断ログ ──
 // 音声まわりは端末でしか再現しないので、その場で原因を読み取れるようにする。
@@ -2446,6 +2457,9 @@ async function startCapture(){
       try { await audioCtx.resume(); } catch(e) {}
     }
     analyser=audioCtx.createAnalyser(); analyser.fftSize=2048;
+    // 既定の0.8だと、話し終えても音量表示が1秒近く尾を引き、その分だけ
+    // 「静かになった」の判定が遅れる。反応速度に直結するので短くする。
+    analyser.smoothingTimeConstant=0.2;
     const src=audioCtx.createMediaStreamSource(mediaStream);
     processor=audioCtx.createScriptProcessor(4096,1,1);
     src.connect(analyser); src.connect(processor); processor.connect(audioCtx.destination);
@@ -2464,10 +2478,18 @@ async function startCapture(){
       // 騒音レベルは環境で大きく変わるため固定しきい値では判定できない
       // （静かな部屋でも周囲音が30を超え、しきい値3では常時「発話中」になる）。
       // 周囲の騒音(noiseFloor)を追従的に測り、そこから一定以上大きい音だけを声とみなす。
-      // 静かな方へは速く、うるさい方へは遅く追従させ、発話自体に釣られないようにする。
-      if(noiseFloor===null) noiseFloor=vol;
-      else if(vol<noiseFloor) noiseFloor = noiseFloor*0.90 + vol*0.10;
-      else                    noiseFloor = noiseFloor*0.999 + vol*0.001;
+      // 直近数秒の下位15%を騒音レベルとみなす。
+      // 以前は指数移動平均で、上方向にだけ極端に鈍くしていた（係数0.001）。
+      // 発話に釣られない狙いだったが、静かな所から騒がしい所へ移ると
+      // 追いつくのに1分以上かかる。その間ずっと「しゃべり続けている」と
+      // 判定されて区間が上限まで切れず、反応が数秒遅れる原因になっていた。
+      // 分位点なら、発話で上振れしても下位側は環境音のまま動かない。
+      volHist.push(vol);
+      if(volHist.length>VOL_HIST_LEN) volHist.shift();
+      if(volHist.length>=8){
+        const sorted=volHist.slice().sort((a,b)=>a-b);
+        noiseFloor = sorted[Math.floor(sorted.length*0.15)];
+      } else if(noiseFloor===null) noiseFloor=vol;
       const speakThr = noiseFloor + cfg.volThr;
       const speaking = vol > speakThr;
       dbgFrames++;                      // 発火回数は常に数える（診断の要）
@@ -2511,36 +2533,35 @@ async function startCapture(){
         return;
       }
 
-      if(speaking){
-        // 発話の立ち上がりでだけ、溜めておいた直前の音を先に流し込む
-        if(!isVoice){ for(let i=0;i<preRoll.length;i++) segBuffer.push(preRoll[i]); preRoll.length=0; }
-        segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
-        clearTimeout(segTimer); isVoice=true; silenceStart=null;
-        segTimer=setTimeout(flushSeg,cfg.silenceMs);
-        // 安全弁：騒音等で「常時発話中」と判定され続けると送信タイマーが
-        // 毎回リセットされ、永久に送信されずバッファだけが膨らむ。
-        // 一定長を超えたら無条件で送信して必ず前に進める。
-        const srNow=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
-        if(segBuffer.length > srNow*MAX_SEG_SEC){ clearTimeout(segTimer); flushSeg(); }
-      } else if(isVoice){
-        segBuffer.push(...Array.from(e.inputBuffer.getChannelData(0)));
-        if(!silenceStart) silenceStart=Date.now();
-        if(Date.now()-silenceStart>cfg.silenceMs){ clearTimeout(segTimer); flushSeg(); }
-      } else {
-        // 待機中は直前 PREROLL_SEC 秒だけを保持し続ける
-        const srP=(audioCtx&&audioCtx.sampleRate)?audioCtx.sampleRate:44100;
-        for(let i=0;i<ch.length;i++) preRoll.push(ch[i]);
-        const keep=Math.floor(srP*PREROLL_SEC);
-        if(preRoll.length>keep) preRoll.splice(0, preRoll.length-keep);
+      // ── ハンズフリー（常時録音）──
+      // ここでは「声かどうか」を判定しない。音量は2つの用途にしか使わない：
+      //   1) どこで区切るか（しゃべっている最中に切らない）
+      //   2) その区間に一度でも声量の山があったか（無ければ送らない）
+      if(autoOn && mediaRec){
+        const over = vol - noiseFloor;
+        if(over > chunkPeakOver) chunkPeakOver = over;
+        const elapsed = (Date.now()-chunkStartAt)/1000;
+        const quiet = over < cfg.volThr*0.5;
+        if(quiet){ if(!chunkQuietAt) chunkQuietAt = Date.now(); }
+        else chunkQuietAt = 0;
+        const heard = chunkPeakOver >= cfg.volThr;   // この区間に声量の山があったか
+        if(elapsed >= CHUNK_MAX_SEC) cutChunk('上限');
+        // 話し終わって静かになったら、区間の上限を待たずに送る。
+        // 「言ったのに数秒間なにも起きない」の正体はここの待ち時間だった。
+        else if(heard && chunkQuietAt && Date.now()-chunkQuietAt >= SPEECH_TAIL_MS && elapsed >= 1.2){
+          cutChunk('発話終了');
+        }
+        // 声が無かった区間は、短く捨てて次に進む
+        else if(!heard && elapsed >= CHUNK_MIN_SEC) cutChunk('無音');
       }
     };
     startKeepAwake(); // iOS screen-off fix
-    dbgFrames=0; dbgPeak=0; dbgRawPeak=0; dbgVol=0; noiseFloor=null; preRoll=[];
+    dbgFrames=0; dbgPeak=0; dbgRawPeak=0; dbgVol=0; noiseFloor=null; preRoll=[]; volHist=[];
     dbg(`起動 ctx=${audioCtx.state} ${audioCtx.sampleRate}Hz`);
     } catch(ctxErr){
-      // 波形が出ないだけ。タップして話す方式なら録音自体は成立する。
+      // 波形と区切り判定が出来なくなるだけ。録音自体は MediaRecorder が握るので続く。
+      // 常時録音はタイマーでも区切れるようにしてあるので、ここで諦めない。
       audioCtx=null; analyser=null; processor=null;
-      if(cfg.micMode!=='ptt'){ toast('音声解析を開始できません: '+ctxErr.message,'bad'); return; }
       dbg('AudioContext不可（録音は継続）: '+ctxErr.message);
     }
     // 診断モードOFFでも状態を常時表示する。
@@ -2558,11 +2579,15 @@ async function startCapture(){
           + ` vol${dbgVol.toFixed(0)} [b${BUILD}]`;
         return;
       }
-      st.textContent=`vol${dbgVol.toFixed(1)}/floor${(noiseFloor||0).toFixed(1)}`
-        +`/thr${((noiseFloor||0)+cfg.volThr).toFixed(1)} buf${dbgBuf.toFixed(1)}s [b${BUILD}]`;
+      // 常時録音では「いま何秒目を録っているか」だけが意味を持つ。
+      const el2 = chunkStartAt ? ((Date.now()-chunkStartAt)/1000).toFixed(0) : '-';
+      st.textContent = (autoOn ? `●常時録音 ${el2}s` : '停止中')
+        + ` vol${dbgVol.toFixed(0)}/floor${(noiseFloor||0).toFixed(0)} [b${BUILD}]`;
     },400);
     if(!state.sessionStart) state.sessionStart=Date.now();
     recState='live'; setUiLive(true); saveState();
+    // ハンズフリーは、マイクが開いた瞬間から勝手に録り続ける
+    if(cfg.micMode!=='ptt') startAuto();
     elapsedTimer=setInterval(()=>{
       if(!state.sessionStart) return;
       const sec=Math.floor((Date.now()-state.sessionStart)/1000);
@@ -2574,6 +2599,7 @@ async function startCapture(){
 
 function stopCapture(){
   recState='idle';
+  autoOn=false; clearTimeout(chunkGuardTimer);
   stopKeepAwake();
   // 送信待ちのまま止められた場合は捨てる。onstop を外してから止めないと
   // ストリームが閉じた後に送信が走る。
@@ -2601,6 +2627,17 @@ function updateBars(freqData){
 const MIN_SEG_SEC = 0.4;
 // 1発話がこれを超えたら強制送信する（無限にバッファが伸びるのを防ぐ安全弁）
 const MAX_SEG_SEC = 12;
+
+// ── 常時録音（ハンズフリー）の区切り ──
+// 「声かどうか」を音量で当てるのは音楽下では原理的に無理なので、判定をやめて
+// 一定時間ごとに区切って全部Whisperに投げる。数字と種目が取れた時だけ記録する。
+// 区切る場所だけは音量を使う：しゃべっている最中にブツ切りにすると語が半分になり、
+// どちらのチャンクからも意味が取れなくなるため、静かな瞬間を狙って切る。
+const CHUNK_MIN_SEC = 6;    // 声が無かった区間を捨てて次に進むまでの長さ
+const CHUNK_MAX_SEC = 11;   // 静かにならなくても、ここで必ず切る
+// 話し終わってからこれだけ静かなら、区間の上限を待たずに送る。
+// 反応の速さはほぼこの値で決まる。短すぎると息継ぎで切れて語が割れる。
+const SPEECH_TAIL_MS = 1500;
 
 // Whisperに渡す語彙ヒント（whisper-1は224トークンまで考慮する）
 function whisperPrompt(){
@@ -2770,6 +2807,15 @@ async function sendAudio(blob, filename){
   if(parsed.weight!=null && parsed.exercise) state.lastWeightBy[parsed.exercise]=parsed.weight;
 
   if(parsed.weight!=null||parsed.reps!=null||parsed.seconds!=null){
+    // 常時録音では同じ発話が隣の区間にも入りうる。まったく同じ内容が
+    // 数秒のうちに二度来たら、それは言い直しではなく重複。
+    const sig = [parsed.exercise,parsed.weight,parsed.reps,parsed.seconds].join('/');
+    if(sig===lastAddSig && Date.now()-lastAddAt < 9000){
+      logEvent('重複のためスキップ: '+sig);
+      setTranscript('（同じ内容のためスキップ）', false);
+      return;
+    }
+    lastAddSig=sig; lastAddAt=Date.now();
     // 「10回3セット」とまとめて言われたら、その分だけ行を作る
     const n = Math.min(Math.max(parsed.setCount||1, 1), 10);
     let row=null;
@@ -2844,7 +2890,7 @@ function setUiLive(live){
   } else {
     idleView.style.display = 'flex';
     liveView.style.display = 'none';
-    setTranscript(cfg.micMode==='ptt' ? 'タップして話す（音楽OK）' : '小声でOK・自動で記録されます', false);
+    setTranscript(cfg.micMode==='ptt' ? 'タップして話す' : 'タップで開始・あとは話すだけ', false);
     updateBars([]);
   }
 
@@ -2924,6 +2970,79 @@ function startTalking(){
     setTranscript(`聞いています ${s}秒 / 残り${Math.max(0,MAX_SEG_SEC-s)}秒 · タップで送信`, false);
   }, 500);
   if(navigator.vibrate) navigator.vibrate(15);
+}
+
+// ───── ハンズフリー：切れ目なく録り続けて、区切るたびに送る ─────
+// タップは要らない。音楽が鳴っていても関係ない。声かどうかの判定をしないので、
+// 「音楽と声を音量で見分ける」という不可能な前提が消える。
+function startChunk(){
+  if(!autoOn || recState!=='live' || !mediaStream || !window.MediaRecorder) return;
+  try {
+    const mime = pickRecorderMime();
+    mediaRec = mime ? new MediaRecorder(mediaStream,{mimeType:mime})
+                    : new MediaRecorder(mediaStream);
+    recChunks = [];
+    mediaRec.ondataavailable = ev => { if(ev.data && ev.data.size) recChunks.push(ev.data); };
+    const rec = mediaRec;
+    rec.onstop = () => {
+      const type = rec.mimeType || 'audio/mp4';
+      const blob = new Blob(recChunks.slice(), {type});
+      recChunks = [];
+      // この区間の音量ピークは、次の区間を始める前に確保しておく。
+      // startChunk() が chunkPeakOver を 0 に戻すため、順序を逆にすると
+      // 常に「無音」と判定され、何ひとつ記録されなくなる。
+      const peakOver = chunkPeakOver;
+      // 次の区間をすぐ始める。送信の完了を待つと、その間の発話が丸ごと落ちる。
+      startChunk();
+      // 一度も基準を超えなかった区間は、環境音しか入っていない。
+      // 送ってもWhisperが幻聴（無音に対する定型句）を返すだけなので捨てる。
+      if(analyser && peakOver < cfg.volThr){
+        dbg('無音区間をスキップ');
+        return;
+      }
+      sendAudio(blob, mimeToFilename(type));
+    };
+    rec.start();
+    chunkStartAt = Date.now();
+    chunkPeakOver = 0;
+    chunkQuietAt = 0;
+    // AudioContext が無い／止まっている端末では onaudioprocess が来ないので、
+    // 音量で切れない。タイマー側にも必ず退路を用意する。
+    clearTimeout(chunkGuardTimer);
+    chunkGuardTimer = setTimeout(()=>cutChunk('上限'), CHUNK_MAX_SEC*1000 + 500);
+  } catch(e){
+    autoOn = false;
+    logEvent('常時録音を開始できません: '+e.message);
+    toast('この端末では常時録音が使えません。タップして話すに切り替えます','bad');
+    cfg.micMode='ptt'; saveCfg();
+  }
+}
+
+function cutChunk(reason){
+  if(!autoOn || !mediaRec) return;
+  clearTimeout(chunkGuardTimer);
+  const rec = mediaRec; mediaRec = null;
+  const sec = ((Date.now()-chunkStartAt)/1000).toFixed(1);
+  dbg(`区切り(${reason}) ${sec}s`);
+  // 送っている最中は必ずそう見せる。無反応の数秒が一番不安になる。
+  if(reason==='発話終了' || reason==='上限') setTranscript('認識中…', false);
+  // onstop が来ないまま止まる端末があると、録音が二度と再開されない。
+  // 「気づいたら死んでいる」が一番たちが悪いので、必ず自力で復帰させる。
+  chunkGuardTimer = setTimeout(()=>{
+    if(autoOn && !mediaRec){ logEvent('録音が止まったため再開'); startChunk(); }
+  }, 2000);
+  try { rec.stop(); } catch(e){ startChunk(); }
+}
+
+function startAuto(){
+  autoOn = true;
+  setTranscript('聞いています・そのまま話してください', false);
+  startChunk();
+}
+function stopAuto(){
+  autoOn = false;
+  clearTimeout(chunkGuardTimer);
+  if(mediaRec){ const r=mediaRec; mediaRec=null; try{ r.stop(); }catch(e){} }
 }
 
 function stopTalking(){
