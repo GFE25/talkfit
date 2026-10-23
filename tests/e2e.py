@@ -157,6 +157,16 @@ try:
         check('シェア画像を生成', os.path.getsize(path) > 20000, os.path.getsize(path))
         page.screenshot(path=os.path.join(TMP, '5_summary.png'))
 
+        print('ホーム画面追加の案内')
+        ctx3 = b.new_context(viewport={'width': 390, 'height': 844}, user_agent='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')
+        p3 = ctx3.new_page(); p3.goto(f'http://127.0.0.1:{APORT}/index.html'); p3.wait_for_timeout(800)
+        p3.click('#onboardStartBtn'); p3.wait_for_timeout(700)
+        check('iPhone Safari では案内を出す', p3.is_visible('#installHint'))
+        p3.screenshot(path=os.path.join(TMP, '7_install_hint.png'))
+        p3.click('#installHintClose'); p3.reload(); p3.wait_for_timeout(800)
+        check('閉じたらしばらく出さない', not p3.is_visible('#installHint'))
+        check('PCでは出さない', not page.is_visible('#installHint'))
+
         print('設定')
         page.click('#settingsBtn'); page.wait_for_timeout(600)
         check('APIキー欄は開発者向けに格納', not page.is_visible('#apiKey'))

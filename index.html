@@ -10,7 +10,7 @@
 <meta name="description" content="筋トレ中に声でつぶやくだけで、種目・重量・回数を自動で記録。スマホを触らない筋トレ記録アプリ。"/>
 <meta name="apple-mobile-web-app-title" content="TalkFit"/>
 <link rel="manifest" href="manifest.webmanifest"/>
-<script src="config.js?v=22"></script>
+<script src="config.js?v=23"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
 <!-- iOS Safari は index.html を平気で数時間キャッシュする。
@@ -620,6 +620,12 @@ input, select, textarea { font-family: inherit; }
 .pw-links a{color:var(--fg3)}
 .share-btn{width:100%;height:50px;border-radius:var(--r);background:var(--surface);color:var(--fg);font-size:15px;font-weight:600;
   display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border2)}
+.install-hint{width:calc(100% - 40px);margin:4px 20px 12px;display:flex;gap:10px;align-items:flex-start;
+  background:rgba(79,127,255,.10);border:1px solid rgba(79,127,255,.35);border-radius:14px;padding:12px 12px 12px 14px}
+.ih-title{font-size:14px;font-weight:700}
+.ih-text{font-size:12.5px;color:var(--fg2);line-height:1.55;margin-top:2px}
+.ih-icon{display:inline-block;font-size:11px;padding:0 6px;border-radius:5px;background:var(--surface2);color:var(--fg)}
+.ih-close{background:none;border:none;color:var(--fg3);font-size:20px;line-height:1;padding:2px 4px;cursor:pointer}
 details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 12px}
 </style>
 </head>
@@ -708,6 +714,16 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
         <span class="now-sub" id="nowSub"></span>
         <span class="now-edit">変更</span>
       </button>
+
+      <!-- iOS Safari は「ホーム画面に追加」していないサイトの保存データを、
+           7日間開かないと消すことがある。記録が消える前に必ず案内する。 -->
+      <div class="install-hint" id="installHint" style="display:none">
+        <div class="ih-body">
+          <div class="ih-title">ホーム画面に追加してください</div>
+          <div class="ih-text">記録を守るため、Safari下の <span class="ih-icon">共有</span> →「ホーム画面に追加」から開くのがおすすめです。アプリのように全画面で使えます。</div>
+        </div>
+        <button class="ih-close" id="installHintClose" aria-label="閉じる">×</button>
+      </div>
 
       <div class="sets-section">
         <div class="sets-header">
@@ -1044,7 +1060,7 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
 
 <script>
 // ───── Constants ─────
-const BUILD = 22; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 23; // 実機が動かしているコードの世代を特定するための番号
 // ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
 try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
 // ───── Backend ─────
@@ -3473,6 +3489,24 @@ document.getElementById('shareBtn').onclick = async () => {
     }
   } catch(e){ if(e && e.name!=='AbortError') toast('シェアできませんでした','bad'); }
 };
+
+// ── ホーム画面への追加の案内（iOS Safari のみ）──
+(function(){
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const standalone = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  if(standalone){ track('pwa_open'); return; }
+  const until = parseInt(localStorage.getItem('talkfit_install_hint_until')||'0',10);
+  if(!isIOS || Date.now() < until) return;
+  const el = document.getElementById('installHint');
+  el.style.display = 'flex';
+  track('install_hint');
+  document.getElementById('installHintClose').onclick = () => {
+    el.style.display = 'none';
+    // 閉じても3日後にもう一度出す（データ消失のリスクは消えないため）
+    localStorage.setItem('talkfit_install_hint_until', String(Date.now() + 3*86400000));
+  };
+})();
 
 // ───── Init ─────
 if(!localStorage.getItem(LS_ONBOARD)) {
