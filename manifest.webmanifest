@@ -1,0 +1,16 @@
+{
+  "name": "TalkFit — 声で記録する筋トレ",
+  "short_name": "TalkFit",
+  "description": "筋トレ中に声でつぶやくだけで、種目・重量・回数を自動で記録。",
+  "lang": "ja",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C0C0E",
+  "theme_color": "#0C0C0E",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

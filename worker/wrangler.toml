@@ -1,0 +1,39 @@
+name = "talkfit-api"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "talkfit"
+# `npx wrangler d1 create talkfit` の出力に出る ID に置き換える
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+# 料金（円）。表示と MRR 計算に使う。Stripe 側の価格と必ず一致させる
+PRICE_MONTHLY = "680"
+PRICE_YEARLY = "5800"
+TRIAL_DAYS = "14"
+FREE_VOICE_DAYS_PER_MONTH = "4"
+# 使いすぎ防止（1端末1日あたりの音声秒数／リクエスト数、1IPあたり）
+MAX_AUDIO_SEC_PER_DAY = "7200"
+MAX_REQ_PER_DEVICE_DAY = "2000"
+MAX_REQ_PER_IP_DAY = "3000"
+TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
+PARSE_MODEL = "claude-haiku-5-5"
+# アプリ・LPを置くオリジン（カンマ区切り）
+ALLOWED_ORIGINS = "https://gfe25.github.io"
+# Stripe の Payment Link と顧客ポータル（ダッシュボードで作成して貼る）
+PAYMENT_LINK_MONTHLY = ""
+PAYMENT_LINK_YEARLY = ""
+PORTAL_URL = ""
+CONTACT_URL = ""
+
+# 以下は秘密情報なので vars ではなく secret で設定する：
+#   npx wrangler secret put OPENAI_API_KEY
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put STRIPE_WEBHOOK_SECRET
+#   npx wrangler secret put ADMIN_KEY
+#   npx wrangler secret put IP_SALT

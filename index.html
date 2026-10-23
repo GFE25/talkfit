@@ -7,6 +7,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#0C0C0E"/>
+<meta name="description" content="筋トレ中に声でつぶやくだけで、種目・重量・回数を自動で記録。スマホを触らない筋トレ記録アプリ。"/>
+<meta name="apple-mobile-web-app-title" content="TalkFit"/>
+<link rel="manifest" href="manifest.webmanifest"/>
+<script src="config.js?v=22"></script>
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
 <!-- iOS Safari は index.html を平気で数時間キャッシュする。
      直したのに直っていないように見える事故を防ぐため、毎回取り直させる。 -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
@@ -584,6 +590,37 @@ input, select, textarea { font-family: inherit; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 .toast.good { color: var(--green); border-color: rgba(48,209,88,0.3); }
 .toast.bad  { color: var(--red);   border-color: rgba(255,69,58,0.3); }
+
+/* ── Plan / Paywall ── */
+.plan-pill{font-size:11px;font-weight:600;letter-spacing:.02em;padding:5px 10px;border-radius:100px;
+  background:var(--surface2);color:var(--fg2);border:none;cursor:pointer;white-space:nowrap}
+.plan-pill.pro{background:linear-gradient(135deg,#4F7FFF,#8A5CFF);color:#fff}
+.plan-pill.warn{background:rgba(255,214,10,.14);color:var(--yellow)}
+.pw-hero{text-align:center;padding:4px 0 18px}
+.pw-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.12em;padding:4px 10px;border-radius:100px;
+  background:linear-gradient(135deg,#4F7FFF,#8A5CFF);color:#fff;margin-bottom:12px}
+.pw-title{font-size:22px;font-weight:700;letter-spacing:-.4px;line-height:1.35}
+.pw-sub{font-size:14px;color:var(--fg2);margin-top:8px;line-height:1.6}
+.pw-list{list-style:none;padding:0;margin:0 0 18px;display:flex;flex-direction:column;gap:10px}
+.pw-list li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5}
+.pw-list li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0}
+.pw-plans{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.pw-plan{display:flex;justify-content:space-between;align-items:center;width:100%;padding:16px 18px;border-radius:14px;
+  background:var(--surface);border:1.5px solid var(--border2);color:var(--fg);cursor:pointer;text-align:left}
+.pw-plan.best{border-color:var(--accent);background:rgba(79,127,255,.10)}
+.pw-plan .nm{font-size:15px;font-weight:600}
+.pw-plan .sv{font-size:12px;color:var(--green);margin-top:2px}
+.pw-plan .pr{font-family:var(--mono);font-size:17px;font-weight:600}
+.pw-note{font-size:11.5px;color:var(--fg3);line-height:1.6;text-align:center;margin:8px 0 14px}
+.pw-status{background:var(--surface);border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:14px;line-height:1.6}
+.pw-code{font-family:var(--mono);font-size:20px;letter-spacing:.12em;font-weight:600;margin-top:6px}
+.pw-restore{display:flex;gap:8px;margin-top:6px}
+.pw-restore input{flex:1;text-transform:uppercase;font-family:var(--mono);letter-spacing:.08em}
+.pw-links{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;font-size:12px;margin-top:14px}
+.pw-links a{color:var(--fg3)}
+.share-btn{width:100%;height:50px;border-radius:var(--r);background:var(--surface);color:var(--fg);font-size:15px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border2)}
+details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 12px}
 </style>
 </head>
 <body>
@@ -605,6 +642,7 @@ input, select, textarea { font-family: inherit; }
     <div class="header-right">
       <!-- 実機が新しいコードを読めているかを、常に一目で確認できるようにする -->
       <span id="buildTag" style="font-size:10px;color:var(--fg3);letter-spacing:.04em;">b–</span>
+      <button class="plan-pill" id="planPill" style="display:none" aria-label="プラン"></button>
       <div class="status-dot" id="statusDot"></div>
       <button class="icon-btn" id="settingsBtn" aria-label="設定">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -776,6 +814,10 @@ input, select, textarea { font-family: inherit; }
         </div>
       </div>
 
+      <button class="share-btn" id="shareBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        今日のトレーニングをシェア
+      </button>
       <button class="end-btn" id="endBtn">セッションを終了</button>
 
     </div>
@@ -834,10 +876,48 @@ input, select, textarea { font-family: inherit; }
   <button class="btn-secondary" id="wClose">キャンセル</button>
 </div>
 
+<!-- Plan / Paywall Sheet -->
+<div class="sheet" id="sheetPlan">
+  <div class="sheet-handle"></div>
+  <div class="pw-hero">
+    <div class="pw-badge">TALKFIT PRO</div>
+    <div class="pw-title" id="pwTitle">声だけで、全部記録する。</div>
+    <div class="pw-sub" id="pwSub">スマホを触らない筋トレを、毎回のトレーニングで。</div>
+  </div>
+  <div class="pw-status" id="pwStatus" style="display:none"></div>
+  <ul class="pw-list" id="pwList">
+    <li>音声記録が無制限（音楽を流したままでOK）</li>
+    <li>週・月の総重量と部位バランスをいつでも確認</li>
+    <li>自己ベスト・前回比で「伸びている」が見える</li>
+    <li>引き継ぎコードで機種変更してもそのまま使える</li>
+  </ul>
+  <div class="pw-plans" id="pwPlans">
+    <button class="pw-plan best" id="pwYearly"><div><div class="nm">年額プラン</div><div class="sv" id="pwYearlySave">2ヶ月分以上おトク</div></div><div class="pr" id="pwYearlyPrice">¥5,800</div></button>
+    <button class="pw-plan" id="pwMonthly"><div><div class="nm">月額プラン</div></div><div class="pr" id="pwMonthlyPrice">¥680</div></button>
+  </div>
+  <div class="pw-note" id="pwNote">いつでも解約できます。解約後も記録データは消えません。<br>手入力での記録・履歴の閲覧は無料のまま使えます。</div>
+  <div class="form-group" id="pwRestoreBox">
+    <label class="form-label">引き継ぎコードをお持ちの方</label>
+    <div class="pw-restore"><input class="form-input" id="pwCode" placeholder="XXXX-XXXX" maxlength="9" autocomplete="off"/><button class="btn-secondary" id="pwRestore" style="margin:0;width:auto;padding:0 16px">適用</button></div>
+  </div>
+  <button class="btn-secondary" id="pwPortal" style="display:none">サブスクリプションの管理・解約</button>
+  <button class="btn-secondary" id="pwClose">閉じる</button>
+  <div class="pw-links">
+    <a href="legal/terms.html" target="_blank">利用規約</a>
+    <a href="legal/privacy.html" target="_blank">プライバシー</a>
+    <a href="legal/tokushoho.html" target="_blank">特定商取引法に基づく表記</a>
+  </div>
+</div>
+
 <!-- Settings Sheet -->
 <div class="sheet" id="sheetSettings">
   <div class="sheet-handle"></div>
   <h3>設定</h3>
+  <div class="form-group">
+    <label class="form-label">プラン</label>
+    <button class="btn-secondary" id="openPlanFromSettings" style="margin-top:0">プランと引き継ぎコード</button>
+  </div>
+  <details class="dev" id="devKeys"><summary>開発者向け：自分のAPIキーで動かす</summary>
   <div class="form-group">
     <label class="form-label">OpenAI API Key（音声認識）</label>
     <input class="form-input" type="password" id="apiKey" placeholder="sk-..." autocomplete="off"/>
@@ -848,6 +928,8 @@ input, select, textarea { font-family: inherit; }
     <input class="form-input" type="password" id="claudeKey" placeholder="sk-ant-..." autocomplete="off"/>
     <div class="form-help">通常の発話は端末内で解析するため未設定でも動作します。複雑な言い回しの精度を上げたい場合のみ設定。<a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a></div>
   </div>
+  <div class="form-help" style="margin:-6px 0 14px">TalkFitのサーバーが使える時は入力不要です。ここに入れた場合はサーバーを通さず直接APIを呼びます。</div>
+  </details>
   <div class="form-group">
     <label class="form-label">Whisperモデル</label>
     <select class="form-select" id="model">
@@ -962,9 +1044,27 @@ input, select, textarea { font-family: inherit; }
 
 <script>
 // ───── Constants ─────
-const BUILD = 21; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 22; // 実機が動かしているコードの世代を特定するための番号
 // ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
 try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
+// ───── Backend ─────
+// TalkFitサーバー（Cloudflare Worker）のURL。設定するとユーザーはAPIキー不要で使える。
+// 空のままなら、設定画面の「開発者向け」に入れたキーで直接APIを呼ぶ（従来動作）。
+const API_BASE = ((window.TALKFIT_CONFIG||{}).apiBase || '').replace(/\/$/, '');
+const LS_DEVICE = 'talkfit_device';
+// シェア画像に載せる短いURL（独自ドメインを取ったら設定。例 'talkfit.jp'）
+const SHARE_HOST = (window.TALKFIT_CONFIG||{}).shareHost || '';
+function uuid4(){
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+let DEVICE_ID = localStorage.getItem(LS_DEVICE);
+if (!DEVICE_ID) { DEVICE_ID = uuid4(); localStorage.setItem(LS_DEVICE, DEVICE_ID); }
+let planInfo = null; // /v1/me の結果
+
 const LS_KEY = 'talkfit_state_v3';
 const LS_CFG = 'talkfit_cfg_v6'; // v6: OpenAI Whisper移行・model既定リセット
 const DAY = ['日','月','火','水','木','金','土'];
@@ -1919,6 +2019,7 @@ document.getElementById('mSave').onclick = () => {
   playSuccessTone();
   if(navigator.vibrate) navigator.vibrate(30);
   toast(`${ex} ${fmtSet(row)} 追加`,'good');
+  track('set_manual');
 };
 
 // ───── 種目ピッカー ─────
@@ -2019,6 +2120,7 @@ document.getElementById('endBtn').onclick = () => {
     saveState(); // save with updated session (makeSessionName may have mutated existing sessions)
   }
   state.sessionStart=null;
+  if(today.length > 0) track('session_end');
   saveState(); toast('セッション終了','good');
   render(); switchTab('history');
 };
@@ -2247,6 +2349,16 @@ function localParse(raw) {
 
 // Claude APIで解析（ローカルで解釈できなかった発話のみ）
 async function parseWithClaude(text) {
+  if (useBackend()) {
+    const res = await api('/v1/parse', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, candidates: EX_DEF.map(e => e.n), last: state.lastExercise || '' }),
+    });
+    if (!res.ok) throw new Error('parse ' + res.status);
+    const j = await res.json();
+    if (!j.result) throw new Error('parse: empty');
+    return j.result;
+  }
   if (!cfg.claudeKey) throw new Error('Claude APIキーが未設定');
   const prompt =
 `次の日本語発話から筋トレのセット情報を抽出してください。
@@ -2302,7 +2414,7 @@ async function parseUtterance(text) {
   // ローカルで解釈できない複雑な言い回しのみClaudeへ。
   // 常時録音では環境音の区間も書き起こされるので、数字が一つも無いテキストは
   // 記録になりようがない。ここで止めないとAPI費用と待ち時間だけが積み上がる。
-  if (cfg.claudeKey && /\d/.test(normalizeNumbers(String(text||'')))) {
+  if ((cfg.claudeKey || useBackend()) && /\d/.test(normalizeNumbers(String(text||'')))) {
     try { return await parseWithClaude(text); } catch(e) { /* 下の緩和処理へ */ }
   }
   // Claude未設定・失敗時：回数だけでも拾えていれば記録する
@@ -2430,7 +2542,8 @@ function playSuccessTone() {
 }
 
 async function startCapture(){
-  if(!cfg.apiKey){ openSettings(); toast('OpenAI APIキーを設定してください','bad'); return; }
+  if(!useBackend() && !cfg.apiKey){ openSettings(); toast('OpenAI APIキーを設定してください','bad'); return; }
+  if(useBackend() && planInfo && !planInfo.voiceAllowed){ openPlan('limit'); return; }
   try {
     // iOS: 音楽と共存するための制約設定
     const constraints = {
@@ -2571,6 +2684,13 @@ async function startCapture(){
     statusTimer=setInterval(()=>{
       const st=document.getElementById('micStatus');
       if(!st) return;
+      // 一般ユーザーには技術的な数値を見せない。診断モードの時だけ詳細を出す。
+      if(cfg.debugMode!=='on'){
+        st.textContent = cfg.micMode==='ptt'
+          ? (pttActive ? '話し終えたらもう一度タップ' : 'タップして話す')
+          : (autoOn ? '聞いています・セット後につぶやいてください' : '');
+        return;
+      }
       // タップして話す方式では音量しきい値は無関係。録れている「量」だけが意味を持つ。
       if(cfg.micMode==='ptt'){
         const sec = (pttActive && pttStartAt) ? ((Date.now()-pttStartAt)/1000).toFixed(1)+'s' : '';
@@ -2585,14 +2705,16 @@ async function startCapture(){
         + ` vol${dbgVol.toFixed(0)}/floor${(noiseFloor||0).toFixed(0)} [b${BUILD}]`;
     },400);
     if(!state.sessionStart) state.sessionStart=Date.now();
-    recState='live'; setUiLive(true); saveState();
+    recState='live'; setUiLive(true); saveState(); track('voice_start');
     // ハンズフリーは、マイクが開いた瞬間から勝手に録り続ける
     if(cfg.micMode!=='ptt') startAuto();
     elapsedTimer=setInterval(()=>{
       if(!state.sessionStart) return;
       const sec=Math.floor((Date.now()-state.sessionStart)/1000);
-      document.getElementById('statElapsed').textContent=
-        `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+      // 経過時間はサマリーの「今日」表示の3枚目に出す（旧IDは存在しない）
+      const el = document.getElementById('stat3Val');
+      if(el && curPeriod==='day')
+        el.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
     },1000);
   } catch(e){ toast('マイクにアクセスできません: '+e.message,'bad'); }
 }
@@ -2671,11 +2793,11 @@ async function flushSeg(){
   dbg(`送信中 ${(segBuffer.length/sr).toFixed(1)}s @${sr}Hz…`);
   const buf=segBuffer.slice(); segBuffer=[]; isVoice=false; silenceStart=null;
   const wav=encodeWAV(buf, sr);
-  return sendAudio(new Blob([wav],{type:'audio/wav'}), 'audio.wav');
+  return sendAudio(new Blob([wav],{type:'audio/wav'}), 'audio.wav', buf.length/sr);
 }
 
 // 音声の作り方（WAV手組み / MediaRecorder）に関係なく、送信から記録までは同じ道を通す
-async function sendAudio(blob, filename){
+async function sendAudio(blob, filename, audioSec){
   // 無音や極小データを送ってもWhisperは空文字を返すだけで、原因が見えない。
   // 何バイト録れたのかを先に見せる：ここが小さければ録音側、十分なら認識側の問題。
   if(blob.size < 2000){
@@ -2695,6 +2817,31 @@ async function sendAudio(blob, filename){
     // 「ベンチプレス」等が別の語に化ける。既知の種目名を辞書として渡す。
     fd.append('prompt', whisperPrompt());
     if(cfg.lang) fd.append('language',cfg.lang);
+    if(useBackend()){
+      const r = await api('/v1/transcribe', {
+        method:'POST', headers:{'X-Audio-Sec': String(audioSec || 8)}, body:fd,
+      });
+      if(r.status===402){
+        // 無料枠を使い切った：録音を止めてプラン画面へ
+        let j={}; try{ j=await r.json(); }catch(_){}
+        if(j && j.plan) planInfo = Object.assign(planInfo||{}, j);
+        stopCapture(); renderPlanPill(); openPlan('limit');
+        return null;
+      }
+      if(r.status===429){
+        let j={}; try{ j=await r.json(); }catch(_){}
+        if(j.error==='daily_cap'){ toast('本日の音声利用の上限に達しました','bad'); stopCapture(); return null; }
+        if(attempt<2){ await new Promise(ok=>setTimeout(ok,3000)); return transcribe(attempt+1); }
+        toast('混雑のためスキップしました','bad'); return null;
+      }
+      if(!r.ok){
+        logEvent('サーバー '+r.status);
+        if(attempt<1){ await new Promise(ok=>setTimeout(ok,1500)); return transcribe(attempt+1); }
+        toast('音声認識に失敗しました（'+r.status+'）','bad'); return null;
+      }
+      const j = await r.json();
+      return String(j.text||'').trim();
+    }
     const res=await fetch('https://api.openai.com/v1/audio/transcriptions',{
       method:'POST',headers:{'Authorization':'Bearer '+cfg.apiKey},body:fd,
     });
@@ -2832,6 +2979,7 @@ async function sendAudio(blob, filename){
     // 保存と描画を分けて記録する。今回のバグは「保存はできていたが描画で落ちていた」で、
     // ログが解析までしかなかったせいで原因の切り分けに何往復もかかった。
     logEvent(`記録 +${n} → 本日${todaySets().length}セット`);
+    track('set_voice');
     setTranscript(`${row.exercise||'?'} · ${fmtSet(row)}${n>1?' ×'+n+'セット':''}`,true);
     try { render(); }
     catch(e){ logEvent('描画エラー: '+e.message); toast('画面の更新に失敗（記録は保存済み）','bad'); }
@@ -2896,7 +3044,7 @@ function setUiLive(live){
 
   const st = document.getElementById('micStatus');
   // ビルド番号を常時表示：実機が新旧どちらのコードを動かしているか一目で分かるようにする
-  st.textContent = (live ? '小声でOK・自動で記録しています' : '') + `  [build ${BUILD}]`;
+  st.textContent = (live ? '小声でOK・自動で記録しています' : '') + (cfg.debugMode==='on' ? `  [build ${BUILD}]` : '');
   st.classList.toggle('live', live);
 }
 
@@ -2918,7 +3066,8 @@ function dismissOnboarding() {
   el.classList.add('out');
   setTimeout(() => {
     el.style.display = 'none';
-    if(!cfg.apiKey) openSettings(); // キー未設定なら設定へ誘導
+    track('onboard_done');
+    if(!useBackend() && !cfg.apiKey) openSettings(); // キー未設定なら設定へ誘導
   }, 450);
 }
 
@@ -2984,9 +3133,11 @@ function startChunk(){
     recChunks = [];
     mediaRec.ondataavailable = ev => { if(ev.data && ev.data.size) recChunks.push(ev.data); };
     const rec = mediaRec;
+    const recT0 = Date.now();
     rec.onstop = () => {
       const type = rec.mimeType || 'audio/mp4';
       const blob = new Blob(recChunks.slice(), {type});
+      const recSec = (Date.now() - recT0) / 1000;
       recChunks = [];
       // この区間の音量ピークは、次の区間を始める前に確保しておく。
       // startChunk() が chunkPeakOver を 0 に戻すため、順序を逆にすると
@@ -3000,7 +3151,7 @@ function startChunk(){
         dbg('無音区間をスキップ');
         return;
       }
-      sendAudio(blob, mimeToFilename(type));
+      sendAudio(blob, mimeToFilename(type), recSec);
     };
     rec.start();
     chunkStartAt = Date.now();
@@ -3057,7 +3208,7 @@ function stopTalking(){
       const blob = new Blob(recChunks,{type});
       const sec = pttStartAt ? ((Date.now()-pttStartAt)/1000).toFixed(1) : '?';
       logEvent(`録音 ${sec}秒 / ${(blob.size/1024).toFixed(0)}KB / ${type}`);
-      sendAudio(blob, mimeToFilename(type));
+      sendAudio(blob, mimeToFilename(type), pttStartAt ? (Date.now()-pttStartAt)/1000 : 8);
       recChunks = [];
     };
     try { rec.stop(); } catch(e){ setTranscript('録音停止に失敗しました',false); }
@@ -3128,14 +3279,211 @@ document.getElementById('wSave').onclick = () => {
   toast(`${v.toFixed(1)}kg を記録しました`,'good');
 };
 
+// ───── Backend / Plan / Analytics / Share ─────
+function useBackend(){ return !!API_BASE && !cfg.apiKey; }
+
+function api(path, opts){
+  opts = opts || {};
+  const headers = Object.assign({ 'X-Device': DEVICE_ID }, opts.headers || {});
+  return fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+}
+
+// 計測：まとめて送る。届かなくてもアプリの動作には影響させない
+let evQueue = [], evTimer = null;
+function track(name){
+  if(!API_BASE) return;
+  evQueue.push(name);
+  clearTimeout(evTimer);
+  evTimer = setTimeout(flushEvents, 1500);
+}
+function flushEvents(){
+  if(!evQueue.length) return;
+  const events = evQueue.splice(0, 50);
+  try {
+    api('/v1/event', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ events }), keepalive:true }).catch(()=>{});
+  } catch(_) {}
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='hidden') flushEvents(); });
+
+async function refreshPlan(){
+  if(!API_BASE) return null;
+  try {
+    const r = await api('/v1/me');
+    if(r.ok){ planInfo = await r.json(); renderPlanPill(); }
+  } catch(_) {}
+  return planInfo;
+}
+
+function yen(n){ return '¥' + Number(n||0).toLocaleString(); }
+
+function renderPlanPill(){
+  const el = document.getElementById('planPill');
+  if(!el) return;
+  if(!useBackend() || !planInfo){ el.style.display='none'; return; }
+  el.style.display='';
+  el.className = 'plan-pill';
+  if(planInfo.plan==='premium'){ el.textContent='PRO'; el.classList.add('pro'); }
+  else if(planInfo.plan==='trial'){ el.textContent='無料体験 残り'+planInfo.trialDaysLeft+'日'; if(planInfo.trialDaysLeft<=3) el.classList.add('warn'); }
+  else { el.textContent = planInfo.voiceAllowed ? ('無料 今月あと'+planInfo.freeVoiceDaysLeft+'日') : 'Proにする'; el.classList.add('warn'); }
+}
+
+function checkoutUrl(kind){
+  const c = (planInfo && planInfo.config) || {};
+  const base = kind==='yearly' ? c.checkoutYearly : c.checkoutMonthly;
+  if(!base) return '';
+  const sep = base.includes('?') ? '&' : '?';
+  return base + sep + 'client_reference_id=' + encodeURIComponent(DEVICE_ID);
+}
+
+function openPlan(reason){
+  const c = (planInfo && planInfo.config) || {};
+  document.getElementById('pwMonthlyPrice').textContent = yen(c.priceMonthly||680) + '/月';
+  document.getElementById('pwYearlyPrice').textContent = yen(c.priceYearly||5800) + '/年';
+  const pm = c.priceMonthly||680, py = c.priceYearly||5800;
+  document.getElementById('pwYearlySave').textContent = '月あたり' + yen(Math.round(py/12)) + '・' + Math.round((1-py/(pm*12))*100) + '%おトク';
+
+  const st = document.getElementById('pwStatus');
+  const isPro = planInfo && planInfo.plan==='premium';
+  document.getElementById('pwPlans').style.display = isPro ? 'none' : '';
+  document.getElementById('pwList').style.display = isPro ? 'none' : '';
+  document.getElementById('pwNote').style.display = isPro ? 'none' : '';
+  document.getElementById('pwRestoreBox').style.display = isPro ? 'none' : '';
+  document.getElementById('pwPortal').style.display = (isPro && c.portalUrl) ? '' : 'none';
+
+  if(isPro){
+    document.getElementById('pwTitle').textContent = 'Pro をご利用中です';
+    document.getElementById('pwSub').textContent = 'いつもありがとうございます。';
+    st.style.display='';
+    st.innerHTML = '機種変更や別の端末で使う時は、この引き継ぎコードを入力してください。<div class="pw-code">' + esc(planInfo.license||'') + '</div>';
+  } else if(reason==='limit'){
+    document.getElementById('pwTitle').textContent = '今月の無料の音声記録を使い切りました';
+    document.getElementById('pwSub').textContent = 'Proにすると、毎回のトレーニングを声だけで記録できます。手入力はこのまま無料で使えます。';
+    st.style.display='none';
+  } else if(planInfo && planInfo.plan==='trial'){
+    document.getElementById('pwTitle').textContent = '無料体験中（残り'+planInfo.trialDaysLeft+'日）';
+    document.getElementById('pwSub').textContent = '体験が終わると、音声記録は月'+(planInfo.freeVoiceDaysPerMonth||4)+'日まで。Proなら無制限です。';
+    st.style.display='none';
+  } else {
+    document.getElementById('pwTitle').textContent = '声だけで、全部記録する。';
+    document.getElementById('pwSub').textContent = 'スマホを触らない筋トレを、毎回のトレーニングで。';
+    st.style.display='none';
+  }
+  const hasLinks = !!(c.checkoutMonthly || c.checkoutYearly);
+  document.getElementById('pwYearly').style.display = c.checkoutYearly ? '' : 'none';
+  document.getElementById('pwMonthly').style.display = c.checkoutMonthly ? '' : 'none';
+  if(!isPro && !hasLinks){ document.getElementById('pwNote').textContent = 'まもなく有料プランの受付を開始します。'; }
+  openSheet('sheetPlan');
+  if(!isPro) track('paywall_view');
+}
+
+function goCheckout(kind){
+  const url = checkoutUrl(kind);
+  if(!url){ toast('準備中です','bad'); return; }
+  track('checkout_click'); flushEvents();
+  location.href = url;
+}
+document.getElementById('pwMonthly').onclick = () => goCheckout('monthly');
+document.getElementById('pwYearly').onclick  = () => goCheckout('yearly');
+document.getElementById('pwClose').onclick = closeSheets;
+document.getElementById('planPill').onclick = () => openPlan('pill');
+document.getElementById('openPlanFromSettings').onclick = () => { closeSheets(); setTimeout(()=>openPlan('settings'), 420); };
+document.getElementById('pwPortal').onclick = () => {
+  const u = planInfo && planInfo.config && planInfo.config.portalUrl; if(u) window.open(u, '_blank');
+};
+document.getElementById('pwRestore').onclick = async () => {
+  const code = document.getElementById('pwCode').value.trim();
+  if(!code){ toast('コードを入力してください','bad'); return; }
+  try {
+    const r = await api('/v1/restore', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code }) });
+    if(r.ok){ planInfo = await r.json(); renderPlanPill(); closeSheets(); toast('Proを引き継ぎました','good'); return; }
+    if(r.status===404) toast('コードが見つかりません','bad');
+    else if(r.status===409) toast('このコードの契約は終了しています','bad');
+    else toast('引き継ぎに失敗しました','bad');
+  } catch(e){ toast('通信エラー','bad'); }
+};
+
+// 決済から戻ってきた時：Webhookの反映を少し待ってからプランを読み直す
+async function handleCheckoutReturn(){
+  const q = new URLSearchParams(location.search);
+  if(q.get('checkout')!=='success') return;
+  history.replaceState(null, '', location.pathname);
+  toast('決済を確認しています…', null);
+  for(let i=0;i<8;i++){
+    await refreshPlan();
+    if(planInfo && planInfo.plan==='premium'){ toast('Proへようこそ！','good'); openPlan('welcome'); return; }
+    await new Promise(r=>setTimeout(r, 1500));
+  }
+  toast('反映に時間がかかっています。少し後にもう一度開いてください','bad');
+}
+
+// ── シェア画像：今日のトレーニングを1枚にまとめる（口コミの入口）──
+async function buildShareImage(){
+  const sets = todaySets();
+  const W=1080, H=1350, c=document.createElement('canvas'); c.width=W; c.height=H;
+  const g=c.getContext('2d');
+  const bg=g.createLinearGradient(0,0,W,H); bg.addColorStop(0,'#0C0C0E'); bg.addColorStop(1,'#141a2e');
+  g.fillStyle=bg; g.fillRect(0,0,W,H);
+  const glow=g.createRadialGradient(W*0.75,H*0.2,10,W*0.75,H*0.2,700);
+  glow.addColorStop(0,'rgba(79,127,255,0.35)'); glow.addColorStop(1,'rgba(79,127,255,0)');
+  g.fillStyle=glow; g.fillRect(0,0,W,H);
+  const sans='-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN",system-ui,sans-serif';
+  const mono='"JetBrains Mono",ui-monospace,Menlo,monospace';
+  g.fillStyle='#fff'; g.font='600 44px '+sans; g.fillText('TalkFit',90,130);
+  const d=new Date();
+  g.fillStyle='rgba(255,255,255,0.55)'; g.font='400 34px '+sans;
+  g.fillText(`${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}（${DAY[d.getDay()]}）`,90,190);
+  const vol=sets.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
+  g.fillStyle='rgba(255,255,255,0.6)'; g.font='500 36px '+sans; g.fillText('今日の総重量',90,330);
+  g.fillStyle='#fff'; g.font='600 170px '+mono;
+  const vs=vol.toLocaleString(); g.fillText(vs,84,500);
+  const vw=g.measureText(vs).width; g.fillStyle='rgba(255,255,255,0.6)'; g.font='500 56px '+mono; g.fillText('kg',100+vw,500);
+  const exs=[...new Set(sets.filter(s=>s.exercise).map(s=>s.exercise))];
+  g.fillStyle='rgba(255,255,255,0.75)'; g.font='500 38px '+mono;
+  g.fillText(`${sets.length}セット · ${exs.length}種目`,90,575);
+  // 種目ごとのベスト
+  const best={};
+  for(const s of sets){ if(!s.exercise) continue; const k=s.exercise; const v=(s.weight||0)*(s.reps||0);
+    if(!best[k]||v>best[k].v) best[k]={v,s}; }
+  const rows=Object.entries(best).sort((a,b)=>b[1].v-a[1].v).slice(0,5);
+  let y=700;
+  g.strokeStyle='rgba(255,255,255,0.10)'; g.lineWidth=2;
+  for(const [name,{s}] of rows){
+    g.fillStyle='#fff'; g.font='500 42px '+sans; g.fillText(name.length>12?name.slice(0,12)+'…':name,90,y);
+    g.fillStyle='#8FB0FF'; g.font='600 42px '+mono; const t=fmtSet(s); const tw=g.measureText(t).width; g.fillText(t,W-90-tw,y);
+    g.beginPath(); g.moveTo(90,y+34); g.lineTo(W-90,y+34); g.stroke();
+    y+=96;
+  }
+  if(!rows.length){ g.fillStyle='rgba(255,255,255,0.5)'; g.font='400 38px '+sans; g.fillText('今日はこれから。',90,y); }
+  g.fillStyle='rgba(255,255,255,0.9)'; g.font='600 40px '+sans; g.fillText('🎙 声だけで記録しました',90,H-150);
+  g.fillStyle='rgba(255,255,255,0.5)'; g.font='400 32px '+sans; g.fillText('スマホを触らない筋トレ記録 — TalkFit'+(SHARE_HOST?'  '+SHARE_HOST:''),90,H-95);
+  return await new Promise(r=>c.toBlob(r,'image/png'));
+}
+document.getElementById('shareBtn').onclick = async () => {
+  try {
+    const blob = await buildShareImage();
+    const file = new File([blob], 'talkfit.png', { type:'image/png' });
+    const text = '今日の筋トレ、声だけで記録した。 #TalkFit #筋トレ記録';
+    track('share_card');
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], text });
+    } else {
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='talkfit.png'; a.click();
+      toast('画像を保存しました','good');
+    }
+  } catch(e){ if(e && e.name!=='AbortError') toast('シェアできませんでした','bad'); }
+};
+
 // ───── Init ─────
 if(!localStorage.getItem(LS_ONBOARD)) {
   setTimeout(()=>showOnboarding(), 200);
-} else if(!cfg.apiKey) {
-  // オンボーディング済みだがキー未設定なら設定を開く
+} else if(!useBackend() && !cfg.apiKey) {
+  // サーバー未設定かつキー未設定なら設定を開く（開発時のみ）
   setTimeout(()=>openSettings(), 300);
 }
 render();
+track('app_open');
+refreshPlan().then(handleCheckoutReturn);
 </script>
 <!-- Onboarding Overlay (shown on first launch only) -->
 <div class="onboard-overlay" id="onboardOverlay" style="display:none;">
