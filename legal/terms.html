@@ -3,7 +3,7 @@
 <a class="back" href="../lp/">← TalkFit</a>
 <h1>利用規約</h1><div class="date">制定日：2026年10月23日</div>
 
-<p>この利用規約（以下「本規約」）は、<span class="fill">【運営者名】</span>（以下「運営者」）が提供する筋トレ記録サービス「TalkFit」（以下「本サービス」）の利用条件を定めるものです。本サービスを利用した時点で、本規約に同意したものとみなします。</p>
+<p>この利用規約（以下「本規約」）は、<span class="fill" data-cfg="operatorName">【運営者名】</span>（以下「運営者」）が提供する筋トレ記録サービス「TalkFit」（以下「本サービス」）の利用条件を定めるものです。本サービスを利用した時点で、本規約に同意したものとみなします。</p>
 
 <h2>第1条（サービス内容）</h2>
 <p>本サービスは、利用者の発話を文字に書き起こし、トレーニングの種目・重量・回数等を記録・集計する機能を提供します。音声認識の結果には誤りが生じることがあり、運営者は記録内容の正確性を保証しません。</p>
@@ -48,4 +48,19 @@
 
 <h2>第10条（準拠法・管轄）</h2>
 <p>本規約は日本法に準拠し、本サービスに関する紛争は、運営者の住所地を管轄する地方裁判所を第一審の専属的合意管轄裁判所とします。</p>
-</main></body></html>
+</main>
+<script src="../config.js?v=24"></script>
+<script>
+// 運営者名・連絡先は config.js の1か所で管理する
+(function(){
+  var c = window.TALKFIT_CONFIG || {};
+  document.querySelectorAll('[data-cfg]').forEach(function(el){
+    var v = c[el.getAttribute('data-cfg')];
+    if(!v) return;
+    if(el.getAttribute('data-cfg')==='contactEmail'){
+      var a=document.createElement('a'); a.href='mailto:'+v; a.textContent=v; el.replaceWith(a);
+    } else { el.textContent=v; el.classList.remove('fill'); }
+  });
+})();
+</script>
+</body></html>

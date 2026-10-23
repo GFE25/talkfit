@@ -3,11 +3,11 @@
 <a class="back" href="../lp/">← TalkFit</a>
 <h1>特定商取引法に基づく表記</h1><div class="date">最終更新：2026年10月23日</div>
 <table>
-<tr><th>販売事業者</th><td><span class="fill">【氏名または屋号】</span></td></tr>
-<tr><th>運営責任者</th><td><span class="fill">【氏名】</span></td></tr>
+<tr><th>販売事業者</th><td><span class="fill" data-cfg="operatorName">【氏名または屋号】</span></td></tr>
+<tr><th>運営責任者</th><td><span class="fill" data-cfg="representative">【氏名】</span></td></tr>
 <tr><th>所在地</th><td>請求があった場合には遅滞なく開示いたします。</td></tr>
 <tr><th>電話番号</th><td>請求があった場合には遅滞なく開示いたします。</td></tr>
-<tr><th>メールアドレス</th><td><span class="fill">【お問い合わせ先メールアドレス】</span></td></tr>
+<tr><th>メールアドレス</th><td><span class="fill" data-cfg="contactEmail">【お問い合わせ先メールアドレス】</span></td></tr>
 <tr><th>販売価格</th><td>TalkFit Pro 月額プラン：680円（税込）／月<br>TalkFit Pro 年額プラン：5,800円（税込）／年</td></tr>
 <tr><th>商品代金以外の必要料金</th><td>本サービスの利用に必要なインターネット接続料金・通信料金はお客様のご負担となります。</td></tr>
 <tr><th>支払方法</th><td>クレジットカード（Stripeによる決済）</td></tr>
@@ -18,4 +18,19 @@
 <tr><th>返品・返金</th><td>デジタルサービスの性質上、お申し込み後の返金はお受けしておりません。ただし、当方の責めによりサービスを提供できなかった場合はこの限りではありません。</td></tr>
 <tr><th>動作環境</th><td>iPhone（iOS 16以降のSafari）、Android（最新版のChrome）。マイクの使用許可が必要です。</td></tr>
 </table>
-</main></body></html>
+</main>
+<script src="../config.js?v=24"></script>
+<script>
+// 運営者名・連絡先は config.js の1か所で管理する
+(function(){
+  var c = window.TALKFIT_CONFIG || {};
+  document.querySelectorAll('[data-cfg]').forEach(function(el){
+    var v = c[el.getAttribute('data-cfg')];
+    if(!v) return;
+    if(el.getAttribute('data-cfg')==='contactEmail'){
+      var a=document.createElement('a'); a.href='mailto:'+v; a.textContent=v; el.replaceWith(a);
+    } else { el.textContent=v; el.classList.remove('fill'); }
+  });
+})();
+</script>
+</body></html>

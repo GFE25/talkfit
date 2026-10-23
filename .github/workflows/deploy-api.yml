@@ -1,0 +1,78 @@
+# サーバー（Cloudflare Worker）を公開し、アプリの接続先を自動で書き換える。
+# 使い方：Actions タブ →「サーバーを公開」→ Run workflow
+name: サーバーを公開
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['worker/**']
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: 依存関係をインストール
+        run: npm ci
+
+      - name: テスト（失敗したら公開しない）
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: npm test
+
+      - name: 公開
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          PAYMENT_LINK_MONTHLY: ${{ vars.PAYMENT_LINK_MONTHLY }}
+          PAYMENT_LINK_YEARLY: ${{ vars.PAYMENT_LINK_YEARLY }}
+          PORTAL_URL: ${{ vars.PORTAL_URL }}
+          CONTACT_URL: ${{ vars.CONTACT_URL }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: bash scripts/ci-deploy.sh
+
+      - name: アプリの接続先を更新
+        working-directory: .
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if grep -q "apiBase: '${URL}'" config.js; then
+            echo "接続先は最新です"; exit 0
+          fi
+          sed -i -E "s|apiBase: '[^']*'|apiBase: '${URL}'|" config.js
+          # iOS のキャッシュ対策：config.js の読み込み番号を変える
+          sed -i -E "s/config\.js\?v=[0-9a-z.-]+/config.js?v=api${GITHUB_RUN_NUMBER}/" index.html lp/index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config.js index.html lp/index.html
+          git commit -m "chore: アプリの接続先をサーバー ${URL} に設定"
+          git push
+          # GITHUB_TOKEN による push では Pages の再構築が走らないことがあるため明示的に依頼
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/pages/builds" >/dev/null || true

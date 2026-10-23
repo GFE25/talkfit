@@ -5,4 +5,8 @@ window.TALKFIT_CONFIG = {
   apiBase: '',
   // シェア画像に載せる短いURL（独自ドメインを取ったら 'talkfit.jp' など）
   shareHost: '',
+  // 規約・特商法表記に載る運営者情報（公開されます）
+  operatorName: '',      // 例 '関 勇輔' または屋号 'TalkFit'
+  representative: '',    // 運営責任者の氏名
+  contactEmail: '',      // 問い合わせ用（専用のGmailを推奨）
 };
