@@ -33,6 +33,9 @@ jobs:
             -derivedDataPath build/dd \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log | grep -E "error:|warning: .*TalkFit|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
+          for f in TalkFitVoicePlugin MainViewController; do
+            if grep -q "${f}.swift" build.log; then echo "::notice::${f}.swift をコンパイルしました"; else echo "::error::${f}.swift がビルドに含まれていません"; exit 1; fi
+          done
       - name: エラーの抜粋
         if: failure()
         run: grep -n "error:" build.log | head -50 || true
