@@ -10,7 +10,7 @@
 <meta name="description" content="筋トレ中に声でつぶやくだけで、種目・重量・回数を自動で記録。スマホを触らない筋トレ記録アプリ。"/>
 <meta name="apple-mobile-web-app-title" content="TalkFit"/>
 <link rel="manifest" href="manifest.webmanifest"/>
-<script src="config.js?v=24"></script>
+<script src="config.js?v=25"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
 <!-- iOS Safari は index.html を平気で数時間キャッシュする。
@@ -20,6 +20,8 @@
 <meta http-equiv="Expires" content="0"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<!-- 音声認識の通信を事前につないでおく（初回の発話で TLS 接続の待ち時間を払わない） -->
+<link rel="preconnect" href="https://api.openai.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -626,6 +628,14 @@ input, select, textarea { font-family: inherit; }
 .ih-text{font-size:12.5px;color:var(--fg2);line-height:1.55;margin-top:2px}
 .ih-icon{display:inline-block;font-size:11px;padding:0 6px;border-radius:5px;background:var(--surface2);color:var(--fg)}
 .ih-close{background:none;border:none;color:var(--fg3);font-size:20px;line-height:1;padding:2px 4px;cursor:pointer}
+.mic-blocked{width:calc(100% - 40px);margin:4px 20px 12px;flex-direction:column;gap:4px;
+  background:rgba(255,69,58,.12);border:1px solid rgba(255,69,58,.45);border-radius:14px;padding:12px 14px}
+.mb-title{font-size:14px;font-weight:700;color:#FF6961}
+.mb-text{font-size:12.5px;color:var(--fg2);line-height:1.55}
+.learn-list{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+.learn-row{display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:10px;padding:8px 12px;font-size:13px}
+.learn-row button{background:none;border:none;color:var(--fg3);font-size:18px;line-height:1;padding:0 4px;cursor:pointer}
+.learn-empty{font-size:13px;color:var(--fg3)}
 details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 12px}
 </style>
 </head>
@@ -717,6 +727,12 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
 
       <!-- iOS Safari は「ホーム画面に追加」していないサイトの保存データを、
            7日間開かないと消すことがある。記録が消える前に必ず案内する。 -->
+      <!-- 他のアプリ（Spotify等）にマイクを止められた時に出す -->
+      <div class="mic-blocked" id="micBlocked" style="display:none">
+        <div class="mb-title">音楽アプリにマイクを止められています</div>
+        <div class="mb-text">iPhoneでは、Webアプリの録音中に他のアプリで音楽を流すと、iOSがマイクを止めます。この間の発話は記録されません。音楽を一時停止すると自動で再開します。</div>
+      </div>
+
       <div class="install-hint" id="installHint" style="display:none">
         <div class="ih-body">
           <div class="ih-title">ホーム画面に追加してください</div>
@@ -949,9 +965,9 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
   <div class="form-group">
     <label class="form-label">Whisperモデル</label>
     <select class="form-select" id="model">
-      <option value="whisper-1">whisper-1（推奨・確実）</option>
-      <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe（安価・高精度）</option>
-      <option value="gpt-4o-transcribe">gpt-4o-transcribe（最高精度）</option>
+      <option value="gpt-4o-transcribe">gpt-4o-transcribe（推奨・最高精度）</option>
+      <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe（速い・安価）</option>
+      <option value="whisper-1">whisper-1（旧方式）</option>
     </select>
   </div>
   <div class="form-group">
@@ -1002,6 +1018,11 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
   <div class="form-group">
     <label class="form-label">種目略語マッピング</label>
     <textarea class="form-textarea" id="aliases" placeholder="インクラ=インクラインベンチプレス&#10;PD=トライセプスプレスダウン"></textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">覚えた聞き間違い</label>
+    <div class="learn-list" id="learnList"></div>
+    <div class="form-help">記録を修正すると、どう聞き間違えたかを覚えて、次から自動で直します。重量は過去の記録と比べて、ありえない数字（十八と八十の取り違えなど）を補正します。</div>
   </div>
   <div class="form-group">
     <label class="form-label">診断ログ（直近12件）</label>
@@ -1060,7 +1081,7 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
 
 <script>
 // ───── Constants ─────
-const BUILD = 24; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 25; // 実機が動かしているコードの世代を特定するための番号
 // ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
 try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
 // ───── Backend ─────
@@ -1349,7 +1370,8 @@ function makeSessionName(ts) {
 const DEF_CFG = {
   apiKey:'',        // OpenAI（Whisper音声認識用）
   claudeKey:'',     // Claude（発話解析用）
-  model:'whisper-1',
+  // whisper-1 は日本語の数字（十八と八十など）を取り違えやすい。
+  model:'gpt-4o-transcribe',
   // 無音判定は短いほど反応が速い。700msあれば「ベンチプレス80キロ10回」の
   // 途中の息継ぎでは切れず、言い終わりからの待ち時間は体感で半減する。
   silenceMs:700, volThr:12, volThrMode:'floor', lang:'ja', aliases:'', musicMode:'on', debugMode:'off',
@@ -1374,10 +1396,15 @@ cfg.volThr    = numOr(cfg.volThr,    DEF_CFG.volThr,    1,   100);
 // 判定対象は保存済みデータ。cfg 側を見ると既定値に隠れて移行が発動しない。
 if (savedCfg.volThrMode !== 'floor') { cfg.volThr = DEF_CFG.volThr; cfg.volThrMode = 'floor'; saveCfg(); }
 // 応答速度の既定値変更（1200ms→700ms）を、一度だけ既存端末にも反映する
-if (savedCfg.cfgVer !== 12 && savedCfg.cfgVer !== 13) { cfg.silenceMs = DEF_CFG.silenceMs; saveCfg(); }
+if ((savedCfg.cfgVer||0) < 12) { cfg.silenceMs = DEF_CFG.silenceMs; saveCfg(); }
 // 常時録音方式への切り替え。既定値だけ変えても、すでに 'ptt' を保存している
 // 端末には一生届かない（保存値が既定値に勝つ）。一度だけ上書きする。
-if (savedCfg.cfgVer !== 13) { cfg.micMode = DEF_CFG.micMode; cfg.cfgVer = 13; saveCfg(); }
+if ((savedCfg.cfgVer||0) < 13) { cfg.micMode = DEF_CFG.micMode; cfg.cfgVer = 13; saveCfg(); }
+// 認識モデルの既定を whisper-1 → gpt-4o-transcribe に。自分で選び直した人の設定は以後尊重する
+if ((savedCfg.cfgVer||0) < 14) {
+  if (!savedCfg.model || savedCfg.model === 'whisper-1') cfg.model = DEF_CFG.model;
+  cfg.cfgVer = 14; saveCfg();
+}
 if (!cfg.model) cfg.model = DEF_CFG.model;
 if (!cfg.lang && cfg.lang !== '') cfg.lang = DEF_CFG.lang;
 
@@ -1899,6 +1926,21 @@ function fillSettingsForm() {
   document.getElementById('debugMode').value=cfg.debugMode||'off';
   document.getElementById('aliases').value=cfg.aliases;
   document.getElementById('diagLog').textContent = recLog.join('\n') || '（まだありません）';
+  renderLearnList();
+}
+function renderLearnList(){
+  const L = learnStore(), el = document.getElementById('learnList');
+  const items = [
+    ...Object.entries(L.alias).map(([k,v]) => ({ kind:'alias', k, label:`「${k}」→ ${v.ex}` })),
+    ...Object.entries(L.numFix).map(([k,v]) => ({ kind:'numFix', k, label:`${k}kg → ${v.to}kg` })),
+    ...Object.keys(L.noFix).map(k => ({ kind:'noFix', k, label:`${k.replace(':','の')}kgは補正しない` })),
+  ];
+  el.innerHTML = items.length
+    ? items.map(it => `<div class="learn-row"><span>${esc(it.label)}</span><button data-kind="${it.kind}" data-k="${esc(it.k)}" aria-label="忘れる">×</button></div>`).join('')
+    : '<div class="learn-empty">まだありません</div>';
+  el.querySelectorAll('button').forEach(b => b.onclick = () => {
+    delete learnStore()[b.dataset.kind][b.dataset.k]; saveState(); renderLearnList();
+  });
 }
 function openSettings() { fillSettingsForm(); openSheet('sheetSettings'); }
 
@@ -2018,11 +2060,16 @@ document.getElementById('mSave').onclick = () => {
 
   if(editingId){
     const row = state.sets.find(s=>s.id===editingId);
-    if(row){ row.exercise=ex; row.weight=w; row.reps=r; row.seconds=sec; row.edited=true; }
+    let learned = [];
+    if(row){
+      const before = { exercise:row.exercise, weight:row.weight, reps:row.reps };
+      row.exercise=ex; row.weight=w; row.reps=r; row.seconds=sec; row.edited=true;
+      learned = learnFromCorrection(row, before);
+    }
     editingId=null;
     state.lastExercise=ex;
     saveState(); closeSheets(); render();
-    toast('修正しました','good');
+    toast(learned.length ? '修正しました・次から覚えておきます' : '修正しました','good');
     return;
   }
 
@@ -2221,6 +2268,17 @@ function speechContext() {
 function matchExercise(tm, ctx) {
   ctx = ctx || speechContext();
 
+  // ⓪ 修正から覚えた「この人の聞こえ方」
+  const learnedAlias = Object.entries(learnStore().alias).sort((a,b)=>b[0].length-a[0].length);
+  if (learnedAlias.length) {
+    const hay0 = foldKana(tm);
+    for (const [k, v] of learnedAlias) {
+      if (k && (hay0.includes(k) || (k.length>=5 && substrDistance(hay0, k) <= Math.floor(k.length/5)))) {
+        return EX_BY_NAME[v.ex] || { n:v.ex, m:muscleOf(v.ex) };
+      }
+    }
+  }
+
   // ① ユーザーが自分で登録した言い方が最優先
   for (const line of String(cfg.aliases||'').split(/[\n,]/)) {
     const [a,b] = line.split('=').map(x => strip(x));
@@ -2243,13 +2301,95 @@ function matchExercise(tm, ctx) {
     const d = substrDistance(hay, e.fold);
     if (d === 0) return e.def;
     const inCtx = ctx.recent.has(e.def.n);
+    const usual = (personalStats().count[e.def.n]||0) >= 3;   // ふだんやっている種目
+    // 許容するズレ幅を広げるのは今日やっている種目だけ（広げすぎると別の種目に誤爆する）
     const allow = Math.floor(e.fold.length / 4) + (inCtx ? 1 : 0);
     if (d > allow) continue;
-    // 同じズレ幅なら長い語を、さらに今日やっている種目を優先する
-    const score = d / e.fold.length - (inCtx ? 0.12 : 0);
+    // 同じズレ幅なら長い語を、さらに今日やっている・ふだんやっている種目を優先する
+    const score = d / e.fold.length - (inCtx ? 0.12 : 0) - (usual ? 0.06 : 0);
     if (!best || score < best.score) best = { def:e.def, score };
   }
   return best ? best.def : null;
+}
+
+// ───── 個人学習 ─────
+// 言い方の癖・聞き間違えられ方・扱う重量は人によって違う。
+// 修正された記録と過去の記録から、その人専用の辞書と「ありえる重量」を学ぶ。
+function learnStore(){
+  state.learn = state.learn || {};
+  state.learn.alias  = state.learn.alias  || {};   // 聞こえ方 → 種目
+  state.learn.numFix = state.learn.numFix || {};   // 聞こえた重量 → 正しい重量
+  state.learn.noFix  = state.learn.noFix  || {};   // 自動補正が外れた組み合わせ（以後は直さない）
+  return state.learn;
+}
+// 発話から「種目名にあたる部分」だけを取り出す（数字・単位・つなぎ言葉を除く）
+const NAME_NOISE = /\d+(?:\.\d+)?|キロ|きろ|kg|KG|Kg|㎏|レップ|reps?|セット|かける|×|同じで|おなじで|同じ|おなじ|回|かい|発|秒|分|で|を|は|が|です|ます|えーと|えっと|えー|あと/g;
+function nameKeyOf(text){
+  return foldKana(strip(normalizeNumbers(String(text||''))).replace(NAME_NOISE,''));
+}
+let _stats=null, _statsN=-1, _statsAt=0;
+function personalStats(){
+  if (_stats && _statsN===state.sets.length && Date.now()-_statsAt<60000) return _stats;
+  const since = Date.now() - 120*86400000;
+  const count = {}, weights = {};
+  for (const x of state.sets) {
+    if (!x.exercise || x.ts < since) continue;
+    count[x.exercise] = (count[x.exercise]||0) + 1;
+    if (x.weight!=null && x.weight>0) (weights[x.exercise] = weights[x.exercise]||[]).push(x.weight);
+  }
+  const top = Object.entries(count).sort((a,b)=>b[1]-a[1]).map(([e])=>e);
+  _stats = { count, weights, top }; _statsN = state.sets.length; _statsAt = Date.now();
+  return _stats;
+}
+function median(arr){ const a=arr.slice().sort((x,y)=>x-y); const m=a.length>>1; return a.length%2 ? a[m] : (a[m-1]+a[m])/2; }
+
+// 過去の重量から見てありえない数字なら、よくある聞き間違い（十八⇔八十 など）を疑う。
+// 履歴が3件未満の種目では何もしない（根拠なく数字を変えない）。
+function plausibleWeight(ex, w){
+  const ws = ((personalStats().weights[ex])||[]).slice(-30);
+  if (ws.length < 3 || !(w>0)) return { w, fixed:false };
+  const L = learnStore();
+  if (L.noFix[ex+':'+w]) return { w, fixed:false };
+  const m = median(ws), lo = Math.min(...ws), hi = Math.max(...ws);
+  const fits = v => v >= Math.min(lo*0.6, m*0.5) && v <= Math.max(hi*1.4, m*1.8);
+  if (fits(w)) return { w, fixed:false };
+  const cands = [];
+  if (L.numFix[w]) cands.push({ v:L.numFix[w].to, why:'以前の修正', pri:0 });
+  if (w>=11 && w<=19) cands.push({ v:(w-10)*10, why:'十と○十の聞き間違い', pri:1 });
+  if (w>=20 && w<=90 && w%10===0) cands.push({ v:10+w/10, why:'○十と十○の聞き間違い', pri:1 });
+  if (w<=20) cands.push({ v:w*10, why:'桁の聞き間違い', pri:2 });
+  if (w>=100) cands.push({ v:w/10, why:'桁の聞き間違い', pri:2 });
+  const ok = cands.filter(c => c.v>0 && fits(c.v))
+                  .sort((a,b) => a.pri-b.pri || Math.abs(a.v-m)-Math.abs(b.v-m));
+  return ok.length ? { w:ok[0].v, fixed:true, why:ok[0].why, from:w } : { w, fixed:false };
+}
+
+// 記録が直された時に、何をどう聞き間違えたかを覚える。覚えた内容を返す。
+function learnFromCorrection(row, before){
+  if (!row || !row.transcript || row.transcript==='(manual)') return [];
+  const L = learnStore(), learned = [];
+  if (row.exercise && before.exercise !== row.exercise) {
+    const key = nameKeyOf(row.transcript);
+    const exFold = foldKana(strip(row.exercise));
+    if (key.length>=2 && key.length<=24 && !exFold.includes(key)) {
+      const cur = L.alias[key];
+      L.alias[key] = { ex:row.exercise, n:(cur && cur.ex===row.exercise ? cur.n : 0) + 1, at:Date.now() };
+      learned.push(`「${row.transcript.replace(/\d.*$/,'').trim() || key}」→ ${row.exercise}`);
+    }
+  }
+  const fromW = row.raw && row.raw.weight_fixed_from!=null ? row.raw.weight_fixed_from : null;
+  if (fromW!=null && row.weight===fromW) {
+    L.noFix[row.exercise+':'+fromW] = true;              // 自動補正が外れていた
+    learned.push(`${row.exercise}の${fromW}kgは補正しない`);
+  } else if (before.weight!=null && row.weight!=null && before.weight!==row.weight
+             && !(row.raw && row.raw.weight_inherited)) {
+    const heard = fromW!=null ? fromW : before.weight;
+    const cur = L.numFix[heard];
+    L.numFix[heard] = { to:row.weight, n:(cur && cur.to===row.weight ? cur.n : 0) + 1, at:Date.now() };
+    learned.push(`${heard}kg → ${row.weight}kg`);
+  }
+  if (learned.length) logEvent('学習: '+learned.join(' / '));
+  return learned;
 }
 
 // 掛け声・独り言。数値を伴わなければ記録対象外
@@ -2557,6 +2697,53 @@ function playSuccessTone() {
   } catch(e) {}
 }
 
+// ───── マイクを止められたことの検知 ─────
+// iPhoneのWebアプリは、録音中に他のアプリ（Spotify等）が音を流すと、iOSにマイクを止められる。
+// 止められても何のエラーも出ないため、利用者には「言ったのに記録されない」としか見えない。
+// 止まった瞬間に画面で知らせ、診断ログにも残す（実機で原因を確定させるため）。
+let micBlocked=false, micBlockedBy='', micBlockedSince=0, silentSince=0, lastFrameAt=0;
+// 解除できるのは、止めたと判断したのと同じ仕組みだけ（別の監視が勝手に消さない）
+function setMicBlocked(on, reason, source){
+  if(on===micBlocked) return;
+  if(!on && source && micBlockedBy && source!==micBlockedBy) return;
+  micBlocked=on; micBlockedBy = on ? (source||reason) : '';
+  const el=document.getElementById('micBlocked');
+  if(el) el.style.display = on ? 'flex' : 'none';
+  if(on){
+    micBlockedSince=Date.now();
+    logEvent('マイクが止められた（'+reason+'）：他のアプリが音を流している可能性');
+    track('mic_blocked');
+    if(document.visibilityState==='visible' && navigator.vibrate) navigator.vibrate([80,80,80]);
+  } else {
+    logEvent(`マイク再開（${((Date.now()-micBlockedSince)/1000).toFixed(0)}秒止まっていた）`);
+  }
+}
+function resetMicBlocked(){
+  micBlocked=false; micBlockedBy=''; silentSince=0; lastFrameAt=0;
+  const el=document.getElementById('micBlocked'); if(el) el.style.display='none';
+}
+function watchMicTrack(stream){
+  const tr = stream && stream.getAudioTracks && stream.getAudioTracks()[0];
+  if(!tr) return;
+  tr.onmute   = () => setMicBlocked(true, 'track muted', 'track');
+  tr.onunmute = () => setMicBlocked(false, '', 'track');
+  tr.onended  = () => {
+    if(recState!=='live') return;
+    setMicBlocked(true, 'track ended', 'track');
+    // マイクを奪われたまま終わった時は、取り直す（許可済みなら確認なしで戻る）
+    logEvent('マイクを取り直します');
+    stopCapture();
+    setTimeout(()=>{ startCapture(); }, 800);
+  };
+}
+// マイクの生データが「完全な0」のまま続くのは、静かな部屋ではなくOSに止められている時
+function micSilenceWatch(peak){
+  lastFrameAt = Date.now();
+  if(peak > 1e-4){ silentSince=0; if(micBlocked) setMicBlocked(false, '', 'level'); return; }
+  if(!silentSince) silentSince=Date.now();
+  else if(Date.now()-silentSince > 2500) setMicBlocked(true, 'digital silence', 'level');
+}
+
 async function startCapture(){
   if(!useBackend() && !cfg.apiKey){ openSettings(); toast('OpenAI APIキーを設定してください','bad'); return; }
   if(useBackend() && planInfo && !planInfo.voiceAllowed){ openPlan('limit'); return; }
@@ -2570,6 +2757,8 @@ async function startCapture(){
       }
     };
     mediaStream=await navigator.mediaDevices.getUserMedia(constraints);
+    resetMicBlocked();
+    watchMicTrack(mediaStream);
     // タップして話すモードでは AudioContext は波形表示のためだけに使う。
     // 音声そのものは MediaRecorder が握るので、ここで失敗しても録音は続けられる。
     // 以前はこの中の例外が catch まで飛び、マイクは開いているのに
@@ -2585,6 +2774,12 @@ async function startCapture(){
     if(audioCtx.state==='suspended'){
       try { await audioCtx.resume(); } catch(e) {}
     }
+    // iOS は他アプリに音声を奪われると state を 'interrupted' にする
+    audioCtx.onstatechange = () => {
+      if(!audioCtx) return;
+      if(audioCtx.state==='interrupted') setMicBlocked(true, 'audio interrupted', 'ctx');
+      else if(audioCtx.state==='running' && micBlocked) setMicBlocked(false, '', 'ctx');
+    };
     analyser=audioCtx.createAnalyser(); analyser.fftSize=2048;
     // 既定の0.8だと、話し終えても音量表示が1秒近く尾を引き、その分だけ
     // 「静かになった」の判定が遅れる。反応速度に直結するので短くする。
@@ -2629,6 +2824,7 @@ async function startCapture(){
       const ch=e.inputBuffer.getChannelData(0);
       let pk=0; for(let i=0;i<ch.length;i+=16){ const a=Math.abs(ch[i]); if(a>pk) pk=a; }
       if(pk>dbgRawPeak) dbgRawPeak=pk;
+      micSilenceWatch(pk);
       dbgBuf=segBuffer.length/((audioCtx&&audioCtx.sampleRate)||44100);
       if(cfg.debugMode==='on'){
         if(dbgFrames%5===0){
@@ -2698,6 +2894,8 @@ async function startCapture(){
     // 占有している等）、raw は動くのに vol が小さいなら判定側の問題、と切り分けられる。
     clearInterval(statusTimer);
     statusTimer=setInterval(()=>{
+      if(audioCtx && lastFrameAt && document.visibilityState==='visible'
+         && Date.now()-lastFrameAt > 3000) setMicBlocked(true, 'no audio frames', 'level');
       const st=document.getElementById('micStatus');
       if(!st) return;
       // 一般ユーザーには技術的な数値を見せない。診断モードの時だけ詳細を出す。
@@ -2737,6 +2935,7 @@ async function startCapture(){
 
 function stopCapture(){
   recState='idle';
+  resetMicBlocked();
   autoOn=false; clearTimeout(chunkGuardTimer);
   stopKeepAwake();
   // 送信待ちのまま止められた場合は捨てる。onstop を外してから止めないと
@@ -2775,27 +2974,33 @@ const CHUNK_MIN_SEC = 6;    // 声が無かった区間を捨てて次に進む�
 const CHUNK_MAX_SEC = 11;   // 静かにならなくても、ここで必ず切る
 // 話し終わってからこれだけ静かなら、区間の上限を待たずに送る。
 // 反応の速さはほぼこの値で決まる。短すぎると息継ぎで切れて語が割れる。
-const SPEECH_TAIL_MS = 1500;
+const SPEECH_TAIL_MS = 900;
+// 区切りを短くすると「ベンチ80キロ」「10回」のように1発話が割れることがある。
+// 回数の無い断片はしばらく保留し、次の区間とつなげて読む。
+const PARTIAL_HOLD_MS = 7000;
+let pendingPartial = null, pendingTimer = null;
 
-// Whisperに渡す語彙ヒント（whisper-1は224トークンまで考慮する）
+// 認識モデルに渡す語彙ヒント。
+// ・例文（「ベンチプレス80キロ10回」）は入れない。数字がそちらに引っ張られ、
+//   無音や音楽の区間で例文そのものを書き起こす（＝記録していないセットが増える）原因になる。
+// ・whisper-1 はヒントの末尾224トークンしか見ないので、関係の深い語ほど後ろに置く。
+// ・並べる語は辞書の全種目ではなく、その人が実際にやっている種目に絞る。
+const DEFAULT_PROMPT_EX = ['プランク','腕立て伏せ','腹筋','サイドレイズ','アームカール','ショルダープレス',
+  'レッグプレス','ラットプルダウン','デッドリフト','スクワット','ベンチプレス'];
 function whisperPrompt(){
-  // 語彙を並べすぎるとヒントが薄まる。いま使っている種目と直近の種目を先頭に置く
-  const terms=[];
-  if(state.lastExercise) terms.push(state.lastExercise);
-  const recent=[...new Set(todaySets().slice(-12).map(s=>s.exercise).filter(Boolean))].reverse();
-  terms.push(...recent);
-  (cfg.aliases||'').split(/[\n,]/).forEach(line=>{
-    const [a,b]=line.split('=').map(x=>(x||'').trim());
-    if(b) terms.push(b); else if(a) terms.push(a);
+  const st = personalStats();
+  const order = [];
+  if (st.top.length < 5) order.push(...DEFAULT_PROMPT_EX);
+  order.push(...st.top.slice(0, 14).reverse());                       // よくやる種目（多い順に後ろへ）
+  (cfg.aliases||'').split(/[\n,]/).forEach(line=>{                     // 本人が登録した言い方
+    const a=(line.split('=')[0]||'').trim(); if(a) order.push(a);
   });
-  for(const e of EX_DEF) terms.push(e.n);
-  const uniq=[...new Set(terms)].slice(0,45);
-  return '筋力トレーニングの記録。種目名・重量・回数を短く話す。'
-       + '例：ベンチプレス80キロ10回。100キロ5回。腕立て20回。プランク60秒。'
-       // 単位を言わない「80かける5」を数字のまま書き起こさせる。
-       // 例を出さないと「80回5」等に化けて意味が取れなくなる。
-       + 'スクワット80×5。ベンチプレス100×3×5。'
-       + '種目名：'+uniq.join('、')+'。';
+  order.push(...todaySets().slice(-12).map(x=>x.exercise).filter(Boolean)); // 今日やった種目
+  if (state.lastExercise) order.push(state.lastExercise);             // いまの種目を最後に
+  // 後ろに出てきたものを優先して重複を除く
+  const seen=new Set(), terms=[];
+  for (let i=order.length-1; i>=0; i--) { const t=order[i]; if(t && !seen.has(t)){ seen.add(t); terms.unshift(t); } }
+  return '筋トレの記録。' + terms.slice(-20).join('、') + '。';
 }
 
 async function flushSeg(){
@@ -2813,7 +3018,8 @@ async function flushSeg(){
 }
 
 // 音声の作り方（WAV手組み / MediaRecorder）に関係なく、送信から記録までは同じ道を通す
-async function sendAudio(blob, filename, audioSec){
+async function sendAudio(blob, filename, audioSec, meta){
+  meta = meta || {};
   // 無音や極小データを送ってもWhisperは空文字を返すだけで、原因が見えない。
   // 何バイト録れたのかを先に見せる：ここが小さければ録音側、十分なら認識側の問題。
   if(blob.size < 2000){
@@ -2897,6 +3103,7 @@ async function sendAudio(blob, filename, audioSec){
   }
 
   let text;
+  meta.sendAt = Date.now();
   try { text = await transcribe(0); }
   catch(e){ logEvent('通信エラー: '+e.message); toast('通信エラー','bad'); return; }
   // 黙って捨てると「言ったのに反映されない」としか見えない。必ず結果を返す。
@@ -2904,8 +3111,43 @@ async function sendAudio(blob, filename, audioSec){
     logEvent('Whisper→（空）音声が無音か短すぎ');
     setTranscript('聞き取れませんでした',false); return;
   }
-  logEvent('Whisper→「'+text+'」');
+  meta.apiDoneAt = Date.now();
+  return processTranscript(text, meta);
+}
+
+// 書き起こした文字を解釈して記録する（Webの録音・ネイティブ録音の共通入口）
+async function processTranscript(text, meta){
+  meta = meta || {};
+  logEvent('認識→「'+text+'」');
+
+  // 直前の区間が「ベンチ80キロ」のような回数の無い断片なら、つなげて読む
+  if (pendingPartial && Date.now()-pendingPartial.at < PARTIAL_HOLD_MS) {
+    const joined = pendingPartial.text + ' ' + text;
+    const pj = localParse(joined);
+    if (pj && !pj._noise && (pj.reps!=null || pj.seconds!=null)) {
+      logEvent('前の区間とつなげて解釈: '+joined);
+      text = joined;
+    }
+  }
+  pendingPartial = null; clearTimeout(pendingTimer);
   setTranscript(text,false);
+
+  // 重量はあるのに回数が無い＝言い終わる前に区切られた可能性が高い。記録せず続きを待つ
+  const lp0 = localParse(text);
+  if (lp0 === null && /\d/.test(normalizeNumbers(text))
+      && /(キロ|きろ|kg|KG|Kg|㎏)/.test(text) && !/(回|かい|レップ|秒|分)/.test(text)) {
+    pendingPartial = { text, at: Date.now() };
+    setTranscript(text+' …回数を待っています', false);
+    pendingTimer = setTimeout(()=>{
+      if (pendingPartial && pendingPartial.text===text) {
+        pendingPartial = null;
+        logEvent('回数が来なかったため記録せず: '+text);
+        setTranscript('「'+text+'」回数が聞き取れませんでした', false);
+      }
+    }, PARTIAL_HOLD_MS);
+    return;
+  }
+
   let parsed;
   try{ parsed=await parseUtterance(text); }
   catch(e){ logEvent('解析エラー: '+e.message); toast('解析できませんでした','bad'); return; }
@@ -2932,11 +3174,13 @@ async function sendAudio(blob, filename, audioSec){
   if(parsed.fix){
     const last = state.sets[state.sets.length-1];
     if(!last){ setTranscript('直す記録がありません',false); return; }
+    const beforeFix = { exercise:last.exercise, weight:last.weight, reps:last.reps };
     if(parsed.exercise!=null) last.exercise = parsed.exercise;
     if(parsed.weight  !=null) last.weight   = parsed.weight;
     if(parsed.reps    !=null) last.reps     = parsed.reps;
     if(parsed.seconds !=null) last.seconds  = parsed.seconds;
     last.edited = true;
+    learnFromCorrection(last, beforeFix);
     if(last.exercise) state.lastExercise = last.exercise;
     saveState(); render();
     setTranscript('修正：'+(last.exercise||'?')+' · '+fmtSet(last), true);
@@ -2967,6 +3211,13 @@ async function sendAudio(blob, filename, audioSec){
     parsed.weight = state.lastWeightBy[parsed.exercise];
     parsed.weight_inherited = true;
   }
+  if(parsed.weight!=null && !parsed.weight_inherited && parsed.exercise && !(def && def.bw)){
+    const fx = plausibleWeight(parsed.exercise, parsed.weight);
+    if(fx.fixed){
+      logEvent(`重量を補正 ${fx.from}→${fx.w}kg（${fx.why}）`);
+      parsed.weight_fixed_from = fx.from; parsed.weight = fx.w;
+    }
+  }
   if(parsed.weight!=null && parsed.exercise) state.lastWeightBy[parsed.exercise]=parsed.weight;
 
   if(parsed.weight!=null||parsed.reps!=null||parsed.seconds!=null){
@@ -2985,7 +3236,7 @@ async function sendAudio(blob, filename, audioSec){
     for(let i=0;i<n;i++){
       row={
         id:'r'+Date.now()+i+Math.random().toString(36).slice(2,6),
-        ts:Date.now()+i, exercise:parsed.exercise||null,
+        ts:(meta.ts||Date.now())+i, exercise:parsed.exercise||null,
         weight:parsed.weight, reps:parsed.reps, seconds:parsed.seconds??null,
         transcript:text, raw:parsed,
       };
@@ -2996,7 +3247,9 @@ async function sendAudio(blob, filename, audioSec){
     // ログが解析までしかなかったせいで原因の切り分けに何往復もかかった。
     logEvent(`記録 +${n} → 本日${todaySets().length}セット`);
     track('set_voice');
-    setTranscript(`${row.exercise||'?'} · ${fmtSet(row)}${n>1?' ×'+n+'セット':''}`,true);
+    setTranscript(`${row.exercise||'?'} · ${fmtSet(row)}${n>1?' ×'+n+'セット':''}`
+      + (parsed.weight_fixed_from!=null ? `（${parsed.weight_fixed_from}→${parsed.weight}kgに補正）` : ''), true);
+    logLatency(meta);
     try { render(); }
     catch(e){ logEvent('描画エラー: '+e.message); toast('画面の更新に失敗（記録は保存済み）','bad'); }
     playSuccessTone();
@@ -3004,6 +3257,20 @@ async function sendAudio(blob, filename, audioSec){
   } else if(parsed.note){
     setTranscript('NOTE: '+parsed.note,false);
   }
+}
+
+// 話し終わりから記録までの時間を内訳つきで残す（遅さの原因を推測でなく数字で見る）
+function logLatency(meta){
+  if(!meta || !meta.speechEndAt) return;
+  const now = Date.now(), f = ms => (Math.max(0,ms)/1000).toFixed(1);
+  const total = now - meta.speechEndAt;
+  logEvent(`速度 ${f(total)}秒（区切り待ち${f(meta.cutAt-meta.speechEndAt)} 録音確定${f(meta.blobAt-meta.cutAt)}`
+    + ` 認識${f(meta.apiDoneAt-meta.sendAt)} 解析${f(now-meta.apiDoneAt)}）`);
+  try {
+    const k='talkfit_latency', a=JSON.parse(localStorage.getItem(k)||'[]');
+    a.push(Math.round(total)); while(a.length>50) a.shift();
+    localStorage.setItem(k, JSON.stringify(a));
+  } catch(_) {}
 }
 
 // セットの数値部分の表記：自重は回数のみ、プランクは秒数
@@ -3167,7 +3434,7 @@ function startChunk(){
         dbg('無音区間をスキップ');
         return;
       }
-      sendAudio(blob, mimeToFilename(type), recSec);
+      sendAudio(blob, mimeToFilename(type), recSec, Object.assign({ blobAt: Date.now() }, rec._meta||{}));
     };
     rec.start();
     chunkStartAt = Date.now();
@@ -3189,6 +3456,7 @@ function cutChunk(reason){
   if(!autoOn || !mediaRec) return;
   clearTimeout(chunkGuardTimer);
   const rec = mediaRec; mediaRec = null;
+  rec._meta = { speechEndAt: chunkQuietAt || Date.now(), cutAt: Date.now() };
   const sec = ((Date.now()-chunkStartAt)/1000).toFixed(1);
   dbg(`区切り(${reason}) ${sec}s`);
   // 送っている最中は必ずそう見せる。無反応の数秒が一番不安になる。
@@ -3219,12 +3487,14 @@ function stopTalking(){
   if(mediaRec && mediaRec.state !== 'inactive'){
     const rec = mediaRec; mediaRec = null;
     // stop() の後に最後のチャンクが届くので、必ず onstop まで待ってから送る
+    const stopAt = Date.now();
     rec.onstop = () => {
       const type = rec.mimeType || 'audio/mp4';
       const blob = new Blob(recChunks,{type});
       const sec = pttStartAt ? ((Date.now()-pttStartAt)/1000).toFixed(1) : '?';
       logEvent(`録音 ${sec}秒 / ${(blob.size/1024).toFixed(0)}KB / ${type}`);
-      sendAudio(blob, mimeToFilename(type), pttStartAt ? (Date.now()-pttStartAt)/1000 : 8);
+      sendAudio(blob, mimeToFilename(type), pttStartAt ? (Date.now()-pttStartAt)/1000 : 8,
+                { speechEndAt: stopAt, cutAt: stopAt, blobAt: Date.now() });
       recChunks = [];
     };
     try { rec.stop(); } catch(e){ setTranscript('録音停止に失敗しました',false); }

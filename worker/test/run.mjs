@@ -19,7 +19,7 @@ const mock = http.createServer((req, res) => {
       upstreamCalls.openai++;
       const auth = req.headers.authorization;
       const s = buf.toString('latin1');
-      const ok = auth === 'Bearer sk-test-openai' && s.includes('gpt-4o-mini-transcribe') && s.includes('name="language"');
+      const ok = auth === 'Bearer sk-test-openai' && s.includes('gpt-4o-transcribe') && s.includes('name="language"');
       res.writeHead(ok ? 200 : 401, { 'Content-Type': 'text/plain' });
       return res.end(ok ? 'ベンチプレス80キロ10回\n' : 'bad');
     }

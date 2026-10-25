@@ -20,7 +20,9 @@
 - APIキーをリポジトリに絶対に書かない（Public リポジトリ。GitHub の検出で自動失効した過去がある）
 - 課金判定はサーバー（`worker/src/index.js` の `entitlement`）に集約する。アプリ側の判定は表示用
 - 計測イベント名は Worker の `EVENT_NAMES` に追加しないと捨てられる
-- 変更後は `cd worker && npm test` と `python3 tests/e2e.py` を通す
+- 変更後は `cd worker && npm test`、`python3 tests/e2e.py`、`python3 tests/learning.py` を通す
+- 認識のヒント文（whisperPrompt）に数字の例文を入れない（無音区間で例文そのものが書き起こされ、架空のセットが増える）
+- 個人学習は `state.learn`（alias / numFix / noFix）。重量の自動補正は履歴3件以上の種目だけ
 - コミットメッセージは日本語で、なぜ変えたかを書く
 
 ## プラン

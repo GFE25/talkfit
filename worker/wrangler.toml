@@ -21,7 +21,8 @@ FREE_VOICE_DAYS_PER_MONTH = "4"
 MAX_AUDIO_SEC_PER_DAY = "7200"
 MAX_REQ_PER_DEVICE_DAY = "2000"
 MAX_REQ_PER_IP_DAY = "3000"
-TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
+# 日本語の数字（十八と八十など）の取り違えが最も少ないモデル
+TRANSCRIBE_MODEL = "gpt-4o-transcribe"
 PARSE_MODEL = "claude-haiku-5-5"
 # アプリ・LPを置くオリジン（カンマ区切り）
 ALLOWED_ORIGINS = "https://gfe25.github.io"
