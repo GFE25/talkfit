@@ -1,0 +1,10 @@
+{
+  "appId": "jp.talkfit.app",
+  "appName": "TalkFit",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0C0C0E",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}

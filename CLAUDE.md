@@ -12,6 +12,8 @@
 - `lp/` — ランディングページ、`legal/` — 規約・プライバシー・特商法
 - `docs/` — ローンチ計画（LAUNCH.md）と集客の素材（GROWTH.md）
 - `tests/e2e.py` — 実ブラウザ（偽マイク）＋実Workerランタイムで、記録→課金→引き継ぎまで通す
+- `app-ios/` — iPhoneアプリ版（Capacitor）。録音だけネイティブ（`TalkFitVoicePlugin.swift`）で、音楽と共存させる。手順は `app-ios/README.md`
+- `tests/learning.py`（精度・学習）、`tests/native.py`（アプリ版のJS側）
 
 ## 守ること
 

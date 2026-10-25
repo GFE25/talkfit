@@ -25,7 +25,8 @@ MAX_REQ_PER_IP_DAY = "3000"
 TRANSCRIBE_MODEL = "gpt-4o-transcribe"
 PARSE_MODEL = "claude-haiku-5-5"
 # アプリ・LPを置くオリジン（カンマ区切り）
-ALLOWED_ORIGINS = "https://gfe25.github.io"
+# capacitor://localhost は iPhone アプリ版
+ALLOWED_ORIGINS = "https://gfe25.github.io,capacitor://localhost"
 # Stripe の Payment Link と顧客ポータル（ダッシュボードで作成して貼る）
 PAYMENT_LINK_MONTHLY = ""
 PAYMENT_LINK_YEARLY = ""

@@ -10,7 +10,7 @@
 <meta name="description" content="筋トレ中に声でつぶやくだけで、種目・重量・回数を自動で記録。スマホを触らない筋トレ記録アプリ。"/>
 <meta name="apple-mobile-web-app-title" content="TalkFit"/>
 <link rel="manifest" href="manifest.webmanifest"/>
-<script src="config.js?v=25"></script>
+<script src="config.js?v=26"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
 <!-- iOS Safari は index.html を平気で数時間キャッシュする。
@@ -1081,7 +1081,7 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
 
 <script>
 // ───── Constants ─────
-const BUILD = 25; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 26; // 実機が動かしているコードの世代を特定するための番号
 // ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
 try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
 // ───── Backend ─────
@@ -2744,7 +2744,91 @@ function micSilenceWatch(peak){
   else if(Date.now()-silentSince > 2500) setMicBlocked(true, 'digital silence', 'level');
 }
 
+// ───── iPhoneアプリ版（ネイティブ録音）─────
+// アプリ内で動いている時は、録音・区切り・書き起こしをネイティブ側（TalkFitVoice）が担う。
+// 音声セッションを他のアプリと共存させるので、Spotify を流したままでも、
+// 画面ロック中（ポケットの中）でも録音が続く。書き起こし結果は端末内の待ち行列に溜まり、
+// JS が動ける時に順番どおり記録する（画面ロック中に JS が止まっていても失われない）。
+const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const NativeVoice = IS_NATIVE
+  ? ((window.Capacitor.Plugins && window.Capacitor.Plugins.TalkFitVoice)
+     || (window.Capacitor.registerPlugin && window.Capacitor.registerPlugin('TalkFitVoice')) || null)
+  : null;
+let nativeLive = false, nativeSubs = [], nativeDone = new Set(), nativeChain = Promise.resolve();
+
+function nativeConfig(){
+  return {
+    mode: useBackend() ? 'server' : 'direct', apiKey: cfg.apiKey||'', apiBase: API_BASE||'',
+    device: DEVICE_ID, model: cfg.model||'gpt-4o-transcribe', language: cfg.lang||'ja',
+    prompt: whisperPrompt(), tailMs: 800, marginDb: 12,
+  };
+}
+// 書き起こし1件を順番に処理する。同じものが二度届いても一度しか記録しない
+function handleNativeItem(it){
+  if(!it || !it.id || nativeDone.has(it.id)) return nativeChain;
+  nativeDone.add(it.id);
+  nativeChain = nativeChain.then(async () => {
+    try {
+      await processTranscript(it.text, { ts: it.ts, speechEndAt: it.speechEndAt, cutAt: it.cutAt,
+        blobAt: it.cutAt, sendAt: it.sendAt, apiDoneAt: it.apiDoneAt });
+    } catch(e){ logEvent('処理エラー: '+e.message); }
+    try { await NativeVoice.ack({ ids:[it.id] }); } catch(_) {}
+    try { await NativeVoice.updateConfig({ prompt: whisperPrompt() }); } catch(_) {}
+  });
+  return nativeChain;
+}
+async function drainNative(){
+  if(!NativeVoice) return;
+  try {
+    const r = await NativeVoice.pending();
+    const items = (r && r.items || []).slice().sort((a,b)=>(a.ts||0)-(b.ts||0));
+    if(items.length) logEvent(`溜まっていた書き起こし ${items.length}件を記録`);
+    for(const it of items) handleNativeItem(it);
+    await nativeChain;
+  } catch(e){ logEvent('待ち行列の読み込みエラー: '+e.message); }
+}
+function nativeBars(db){
+  const bars=document.querySelectorAll('.waveform .bar');
+  const h=Math.max(4, Math.min(40, (db+60)*0.8));
+  const shape=[0.4,0.7,0.9,1,0.9,0.7,0.4];
+  bars.forEach((b,i)=>{ b.style.height=Math.max(4, h*shape[i])+'px'; });
+}
+function onNativeState(st){
+  if(st==='recognizing') setTranscript('認識中…', false);
+  else if(st==='interrupted'){ logEvent('録音が中断された（電話・アラームなど）'); setTranscript('中断中・終わると自動で再開します', false); }
+}
+function onNativeError(e){
+  logEvent(`録音エラー ${e.status||''} ${e.message||''}`.trim());
+  if(e.status===402){ stopCapture(); refreshPlan().then(()=>openPlan('limit')); return; }
+  if(e.message==='insufficient_quota') toast('OpenAIの残高が不足しています','bad');
+  else if(e.status===401) toast(useBackend() ? '認証に失敗しました' : 'OpenAI APIキーが無効です','bad');
+  else toast('音声認識に失敗しました'+(e.status?'（'+e.status+'）':''),'bad');
+}
+async function startNativeCapture(){
+  if(!useBackend() && !cfg.apiKey){ openSettings(); toast('OpenAI APIキーを設定してください','bad'); return; }
+  if(useBackend() && planInfo && !planInfo.voiceAllowed){ openPlan('limit'); return; }
+  try {
+    if(!nativeSubs.length){
+      nativeSubs.push(await NativeVoice.addListener('transcript', handleNativeItem));
+      nativeSubs.push(await NativeVoice.addListener('level', e => nativeBars(e.db)));
+      nativeSubs.push(await NativeVoice.addListener('state', e => onNativeState(e.state)));
+      nativeSubs.push(await NativeVoice.addListener('error', onNativeError));
+    }
+    await NativeVoice.start(nativeConfig());
+    nativeLive = true;
+    if(!state.sessionStart) state.sessionStart=Date.now();
+    recState='live'; setUiLive(true); saveState(); track('voice_start');
+    setTranscript('聞いています・音楽はそのままでOK', false);
+    drainNative();
+  } catch(e){
+    logEvent('ネイティブ録音を開始できません: '+(e.message||e));
+    toast(e.message||'録音を開始できません','bad');
+  }
+}
+if(IS_NATIVE) document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible') drainNative(); });
+
 async function startCapture(){
+  if(NativeVoice) return startNativeCapture();
   if(!useBackend() && !cfg.apiKey){ openSettings(); toast('OpenAI APIキーを設定してください','bad'); return; }
   if(useBackend() && planInfo && !planInfo.voiceAllowed){ openPlan('limit'); return; }
   try {
@@ -2934,6 +3018,7 @@ async function startCapture(){
 }
 
 function stopCapture(){
+  if(nativeLive){ nativeLive=false; try { NativeVoice.stop(); } catch(_) {} }
   recState='idle';
   resetMicBlocked();
   autoOn=false; clearTimeout(chunkGuardTimer);
@@ -3765,6 +3850,7 @@ document.getElementById('shareBtn').onclick = async () => {
   const ua = navigator.userAgent || '';
   const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
   const standalone = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  if(IS_NATIVE){ track('app_native_open'); return; }
   if(standalone){ track('pwa_open'); return; }
   const until = parseInt(localStorage.getItem('talkfit_install_hint_until')||'0',10);
   if(!isIOS || Date.now() < until) return;
@@ -3788,6 +3874,7 @@ if(!localStorage.getItem(LS_ONBOARD)) {
 render();
 track('app_open');
 refreshPlan().then(handleCheckoutReturn);
+if(IS_NATIVE) drainNative();
 </script>
 <!-- Onboarding Overlay (shown on first launch only) -->
 <div class="onboard-overlay" id="onboardOverlay" style="display:none;">

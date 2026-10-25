@@ -1,0 +1,38 @@
+# iPhoneアプリがビルドできるかを、GitHub の Mac で毎回確かめる（署名なし・シミュレーター向け）。
+# 失敗したら Swift のエラーがログに出る。
+name: iPhoneアプリのビルド確認
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['app-ios/**', 'index.html', 'config.js']
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app-ios
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: 依存関係
+        run: npm ci
+      - name: Web アプリを同梱
+        run: npm run sync
+      - name: ビルド（シミュレーター・署名なし）
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -sdk iphonesimulator -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log | grep -E "error:|warning: .*TalkFit|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+      - name: エラーの抜粋
+        if: failure()
+        run: grep -n "error:" build.log | head -50 || true

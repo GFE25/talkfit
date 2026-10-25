@@ -16,7 +16,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 0/O, 1/I を除外
 const EVENT_NAMES = new Set([
   'app_open', 'onboard_done', 'voice_start', 'set_voice', 'set_manual',
   'session_end', 'paywall_view', 'checkout_click', 'checkout_success',
-  'share_card', 'restore_ok', 'lp_view', 'lp_cta', 'install_hint', 'pwa_open', 'mic_blocked',
+  'share_card', 'restore_ok', 'lp_view', 'lp_cta', 'install_hint', 'pwa_open', 'mic_blocked', 'app_native_open',
 ]);
 
 // ───────────────────────── helpers ─────────────────────────
