@@ -23,6 +23,7 @@
 
 ## 公開までの残り（関さんの操作）
 
+0. 実機検証：6項目をアプリ版で2回続けて合格させる（docs/VALIDATION.md）。Web版で精度・学習・速さは今日から、アプリ版は Apple Developer 登録後に TestFlight で（app-ios/TESTFLIGHT.md）
 1. サーバー公開：Cloudflare と OpenAI の鍵を GitHub に登録 → 「サーバーを公開」ボタン（worker/DEPLOY.md 1〜4章、約30分）
 2. 運営者名・連絡先を決めて config.js に記入（規約・特商法に反映）
 3. Stripe 登録と決済リンク（worker/DEPLOY.md 5章、審査1〜3日）
@@ -42,6 +43,7 @@
 
 - 2026-10-25 精度：gpt-4o-transcribe、例文を外した語彙ヒント、本人の聞き間違い・重量の学習、話し終わり0.9秒、断片のつなぎ（build 25）
 - 2026-10-25 iPhoneアプリ版：Spotifyを流したまま・画面ロック中も録音（build 26）
+- 2026-10-27 検証レポート（6項目を○△×で判定）、2時間録音の備え（見張り・再送・停止通知）、TestFlight 送信ボタン（build 27）
 
 ## 毎週の確認
 

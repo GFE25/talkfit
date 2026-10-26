@@ -5,7 +5,14 @@ Web版は、他のアプリが音楽を流すと iOS にマイクを止められ
 
 画面と機能は Web 版と同じです（リポジトリ直下の `index.html` をそのまま同梱しています）。
 
-## 自分の iPhone に入れる（無料・約20分）
+## 自分の iPhone に入れる
+
+Mac が無い場合は **TestFlight**（`TESTFLIGHT.md`、年約1.3万円、Mac 不要・ボタン1つ）。
+Mac と Xcode がある場合は、下の無料の方法でも入れられます。
+
+検証の手順と合格ラインは `docs/VALIDATION.md`。
+
+### Mac で直接入れる（無料・約20分）
 
 App Store に出す前の検証は、Apple ID だけで自分の iPhone に入れられます（有料の開発者登録は不要。7日ごとに入れ直しが必要）。
 
@@ -34,6 +41,9 @@ Mac の Claude Code に「app-ios/README.md の手順で自分の iPhone に入�
 - マイクは iPhone 本体のものを使います（AirPods は音楽の再生に使ったまま、音質も落ちません）
 - 記録できると「ドミ」と短い音が鳴ります。画面を見なくても分かります
 - 画面ロック中に話した分は、次に画面を開いた時にまとめて記録されます（音が鳴った分は失われません）
+- 認識に失敗して記録できなかった時は、低い「ブブッ」が鳴ります
+- 録音が30秒以上止まったままだと、通知でお知らせします（開くと再開）
+- 電波が無い場所で話した分は端末に保存し、通信が戻ったら記録します
 
 ## 仕組み
 
@@ -54,5 +64,5 @@ Mac の Claude Code に「app-ios/README.md の手順で自分の iPhone に入�
 
 ## App Store に出す時（有料・後で）
 
-Apple Developer Program（年 $99）に登録 → Xcode の Product → Archive → App Store Connect に提出。
+Apple Developer Program（年 $99）に登録 → TestFlight と同じボタンで送ったビルドを、App Store Connect から審査に出す。
 App Store 版では、課金を Apple のアプリ内課金にするか、Web で購入したライセンスを使うだけの作りにするかを決める必要があります。

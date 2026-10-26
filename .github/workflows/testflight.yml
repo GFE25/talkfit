@@ -1,0 +1,101 @@
+# iPhoneアプリを TestFlight に送る（Mac 不要。GitHub の Mac でビルド・署名・送信する）
+# 準備：app-ios/TESTFLIGHT.md（Apple Developer Program 登録と、鍵4つを GitHub に登録）
+# 使い方：Actions →「iPhoneアプリを TestFlight に送る」→ Run workflow
+#        10〜30分後、iPhone の TestFlight アプリに届く
+name: iPhoneアプリを TestFlight に送る
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: app-ios
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'jp.talkfit.app' }}
+      # 送るたびに増やす必要がある番号。実行回数を使う
+      BUILD_NO: ${{ github.run_number }}
+    steps:
+      - name: 鍵の確認
+        working-directory: .
+        run: |
+          missing=""
+          for k in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 TEAM_ID; do
+            [ -z "${!k}" ] && missing="$missing $k"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::鍵が未登録です:$missing（app-ios/TESTFLIGHT.md の 3章の手順で GitHub に登録してください）"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: 依存関係
+        run: npm ci
+
+      - name: Web アプリを同梱
+        run: npm run sync
+
+      - name: App Store Connect の鍵を置く
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s\n' "$ASC_KEY_P8" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      # 証明書はここでは使わない。署名は次の手順で Apple のクラウド署名に任せる
+      # （証明書の作成・保管・期限切れの管理が要らない）
+      - name: アーカイブ
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/App.xcarchive \
+            DEVELOPMENT_TEAM="$TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD_NO" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            archive 2>&1 | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          if ! grep -q "ARCHIVE SUCCEEDED" archive.log; then
+            grep "error:" archive.log | head -20 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          fi
+
+      - name: 署名して TestFlight へ送信
+        run: |
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>method</key><string>app-store-connect</string>
+          <key>destination</key><string>upload</string>
+          <key>teamID</key><string>${TEAM_ID}</string>
+          <key>signingStyle</key><string>automatic</string>
+          <key>uploadSymbols</key><true/>
+          <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          EOF
+          plutil -lint ExportOptions.plist
+          set -o pipefail
+          xcodebuild -exportArchive -archivePath build/App.xcarchive \
+            -exportOptionsPlist ExportOptions.plist -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee export.log || true
+          if ! grep -qE "EXPORT SUCCEEDED|Upload succeeded|Uploaded package" export.log; then
+            grep -iE "error|failed" export.log | grep -v "^\s*$" | head -20 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          fi
+          echo "::notice::ビルド ${BUILD_NO} を送信しました。Apple の処理（10〜30分）が終わると、iPhone の TestFlight アプリに届きます"
+
+      - name: 鍵を消す
+        if: always()
+        run: rm -rf ~/.appstoreconnect
