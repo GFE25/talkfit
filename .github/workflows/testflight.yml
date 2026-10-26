@@ -31,7 +31,7 @@ jobs:
             [ -z "${!k}" ] && missing="$missing $k"
           done
           if [ -n "$missing" ]; then
-            echo "::error::鍵が未登録です:$missing（app-ios/TESTFLIGHT.md の 3章の手順で GitHub に登録してください）"
+            echo "::error::鍵が未登録です:${missing}（app-ios/TESTFLIGHT.md の 3章の手順で GitHub に登録してください）"
             exit 1
           fi
 
@@ -98,4 +98,5 @@ jobs:
 
       - name: 鍵を消す
         if: always()
+        working-directory: .
         run: rm -rf ~/.appstoreconnect
