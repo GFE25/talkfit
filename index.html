@@ -10,7 +10,7 @@
 <meta name="description" content="筋トレ中に声でつぶやくだけで、種目・重量・回数を自動で記録。スマホを触らない筋トレ記録アプリ。"/>
 <meta name="apple-mobile-web-app-title" content="TalkFit"/>
 <link rel="manifest" href="manifest.webmanifest"/>
-<script src="config.js?v=26"></script>
+<script src="config.js?v=27"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
 <!-- iOS Safari は index.html を平気で数時間キャッシュする。
@@ -633,6 +633,13 @@ input, select, textarea { font-family: inherit; }
 .mb-title{font-size:14px;font-weight:700;color:#FF6961}
 .mb-text{font-size:12.5px;color:var(--fg2);line-height:1.55}
 .learn-list{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+.vs-list{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+.vs-card{background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5}
+.vs-head{font-weight:600;margin-bottom:4px}
+.vs-row{display:flex;gap:6px;align-items:baseline}
+.vs-k{min-width:6.5em;color:var(--fg2,inherit)}
+.vs-mk{width:1.2em;text-align:center;font-weight:700}
+.vs-ok{color:#2e9d5b}.vs-warn{color:#c98a12}.vs-bad{color:#d2453b}.vs-na{color:var(--fg3,#999)}
 .learn-row{display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:10px;padding:8px 12px;font-size:13px}
 .learn-row button{background:none;border:none;color:var(--fg3);font-size:18px;line-height:1;padding:0 4px;cursor:pointer}
 .learn-empty{font-size:13px;color:var(--fg3)}
@@ -1025,6 +1032,12 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
     <div class="form-help">記録を修正すると、どう聞き間違えたかを覚えて、次から自動で直します。重量は過去の記録と比べて、ありえない数字（十八と八十の取り違えなど）を補正します。</div>
   </div>
   <div class="form-group">
+    <label class="form-label">検証レポート</label>
+    <div class="vs-list" id="verifyList"></div>
+    <div class="form-help">録音を始めてから止めるまでを1回として、精度・学習・速さ・止まった時間を出します。○△×の目安は「docs/VALIDATION.md」と同じです。</div>
+    <button class="btn-secondary" id="copyVerify" style="margin-top:8px;">レポートをコピー</button>
+  </div>
+  <div class="form-group">
     <label class="form-label">診断ログ（直近12件）</label>
     <pre class="diag-log" id="diagLog">（まだありません）</pre>
     <div class="form-help">
@@ -1081,7 +1094,7 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
 
 <script>
 // ───── Constants ─────
-const BUILD = 26; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 27; // 実機が動かしているコードの世代を特定するための番号
 // ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
 try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
 // ───── Backend ─────
@@ -1927,6 +1940,7 @@ function fillSettingsForm() {
   document.getElementById('aliases').value=cfg.aliases;
   document.getElementById('diagLog').textContent = recLog.join('\n') || '（まだありません）';
   renderLearnList();
+  renderVerify();
 }
 function renderLearnList(){
   const L = learnStore(), el = document.getElementById('learnList');
@@ -1944,6 +1958,12 @@ function renderLearnList(){
 }
 function openSettings() { fillSettingsForm(); openSheet('sheetSettings'); }
 
+document.getElementById('copyVerify').onclick = async () => {
+  if(IS_NATIVE && vs) await vsPullNative();
+  const txt = vsText(5);
+  try { await navigator.clipboard.writeText(txt); toast('レポートをコピーしました','good'); }
+  catch(e){ toast('コピーできませんでした','bad'); }
+};
 document.getElementById('copyDiag').onclick = async () => {
   const txt = recLog.join('\n') || '（ログなし）';
   try { await navigator.clipboard.writeText(txt); toast('ログをコピーしました','good'); }
@@ -2063,8 +2083,12 @@ document.getElementById('mSave').onclick = () => {
     let learned = [];
     if(row){
       const before = { exercise:row.exercise, weight:row.weight, reps:row.reps };
-      row.exercise=ex; row.weight=w; row.reps=r; row.seconds=sec; row.edited=true;
-      learned = learnFromCorrection(row, before);
+      const changed = before.exercise!==ex || before.weight!==w || before.reps!==r || (row.seconds??null)!==sec;
+      if(changed){
+        if(!row.orig) row.orig = before;
+        row.exercise=ex; row.weight=w; row.reps=r; row.seconds=sec; row.edited=true;
+        learned = learnFromCorrection(row, before);
+      }
     }
     editingId=null;
     state.lastExercise=ex;
@@ -2075,6 +2099,8 @@ document.getElementById('mSave').onclick = () => {
 
   if(!state.sessionStart) state.sessionStart=Date.now();
   const row={id:'m'+Date.now(),ts:Date.now(),exercise:ex,weight:w,reps:r,seconds:sec,transcript:'(manual)',raw:{}};
+  // 録音中に手で足した＝声で取れなかったセット（検証レポートの「取りこぼし」）
+  if(recState==='live' && vs){ row.src='manual'; row.sid=vs.id; vsBump('manual'); }
   state.sets.push(row);
   state.lastExercise=ex;
   if(w!=null){ state.lastWeightBy=state.lastWeightBy||{}; state.lastWeightBy[ex]=w; }
@@ -2274,6 +2300,7 @@ function matchExercise(tm, ctx) {
     const hay0 = foldKana(tm);
     for (const [k, v] of learnedAlias) {
       if (k && (hay0.includes(k) || (k.length>=5 && substrDistance(hay0, k) <= Math.floor(k.length/5)))) {
+        learnHit = true;
         return EX_BY_NAME[v.ex] || { n:v.ex, m:muscleOf(v.ex) };
       }
     }
@@ -2398,6 +2425,8 @@ const CHATTER = /(以上です|お疲れ|よし|やば|きつ|重い|軽い|あ�
 const RE_FIX  = /(ちがう|違う|じゃなくて|ではなく|まちがえ|間違え|訂正|修正)/;
 const RE_UNDO = /(取り消|取消|今の.{0,2}消|さっきの.{0,2}消|1つ前.{0,2}消|ひとつ前.{0,2}消|削除して|消して)/;
 
+// 筋トレ以外の数え方（数字の直後に付くもの）
+const OTHER_COUNTER = /\d\s*(?:時|月|日|年|度|円|番|人|個|歳|才|号|階|点|%|％|週|ヶ月|か月|カ月|歩|センチ|cm|メートル|ページ|位|枚)/;
 // ローカル解析：ジムでの実発話パターンをAPIなしで即処理
 function localParse(raw) {
   const t  = normalizeNumbers(String(raw||''));
@@ -2451,7 +2480,9 @@ function localParse(raw) {
   // Whisperも「×」「かける」「、」「空白」と揺れて書き起こす。
   // 単位付きで何も取れなかった時に限り、数字の並びだけから意味を割り当てる。
   // strip() は空白や記号を消して「805」にしてしまうので、必ず t（未strip）から拾う。
-  if (weight===null && reps===null && seconds===null && setCount===null) {
+  // ただし「12時」「3月」「45度」のように、筋トレ以外の数え方が付いた数字は対象外
+  // （常時録音では雑談も拾うので、これを回数として記録すると架空のセットが増える）
+  if (weight===null && reps===null && seconds===null && setCount===null && !OTHER_COUNTER.test(t)) {
     const nums = (t.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
     const timeMode = (exDef && exDef.time) || (!exDef && ctx.def && ctx.def.time);
     const bwMode   = (exDef && exDef.bw)   || (!exDef && ctx.def && ctx.def.bw);
@@ -2624,7 +2655,9 @@ let lastAddSig='', lastAddAt=0;   // 隣り合う区間に同じ発話が入っ�
 // 「録音バイト数 → Whisperの生テキスト → 解析結果」が並べば、
 // どの段で落ちたかが一意に決まる。
 const recLog=[];
+const ERR_LOG = /^(API \d|通信エラー|サーバー \d|録音エラー|処理エラー|解析エラー|描画エラー|待ち行列の読み込みエラー|ネイティブ録音を開始できません)/;
 function logEvent(msg){
+  if(vs && ERR_LOG.test(msg)){ vs.errors=(vs.errors||0)+1; vsPush('errLog', new Date().toLocaleTimeString('ja-JP',{hour12:false})+' '+msg, 20); }
   recLog.unshift(new Date().toLocaleTimeString('ja-JP',{hour12:false})+'  '+msg);
   if(recLog.length>12) recLog.length=12;
   const el=document.getElementById('diagLog');
@@ -2668,6 +2701,18 @@ function stopKeepAwake() {
   } catch(e) {}
 }
 
+// Web版は画面が消えると Safari がマイクを止める。録音中は画面を点けたままにする
+// （アプリ版は画面ロック中も録れるので使わない）
+let wakeLock=null;
+async function holdScreen(){
+  if(IS_NATIVE || !('wakeLock' in navigator) || document.visibilityState!=='visible') return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch(_) { wakeLock=null; }
+}
+function releaseScreen(){ try { if(wakeLock) wakeLock.release(); } catch(_) {} wakeLock=null; }
+document.addEventListener('visibilitychange', () => {
+  if(recState==='live' && document.visibilityState==='visible') holdScreen();
+});
+
 // Resume AudioContext if iOS suspended it on screen-on
 document.addEventListener('visibilitychange', async () => {
   if (recState !== 'live') return;
@@ -2697,6 +2742,143 @@ function playSuccessTone() {
   } catch(e) {}
 }
 
+// ───── 検証レポート ─────
+// ローンチ前の実機検証（精度・学習・速さ・音楽との共存・画面ロック中・2時間連続）を
+// 感想ではなく数字で判断するため、録音を始めてから止めるまでを1回の「検証セッション」として残す。
+// 設定画面に一覧と判定を出し、文字でコピーして共有できる。
+const VS_KEY = 'talkfit_verify';
+let vs = null, learnHit = false;
+function vsAll(){ try { return JSON.parse(localStorage.getItem(VS_KEY)||'[]'); } catch(_) { return []; } }
+function vsPut(s){
+  if(!s) return;
+  const all = vsAll().filter(x => x.id!==s.id);
+  all.push(s); all.sort((a,b)=>a.start-b.start);
+  while(all.length>30) all.shift();
+  try { localStorage.setItem(VS_KEY, JSON.stringify(all)); } catch(_) {}
+}
+function vsSave(){ if(vs){ vs.last = Date.now(); vsPut(vs); } }
+function vsStart(platform){
+  const all = vsAll(), prev = all[all.length-1];
+  // マイクの取り直しや、うっかり止めた後の再開は、同じセッションの続きとして数える
+  if(prev && prev.platform===platform && prev.end && Date.now()-prev.end < 5*60000){
+    vs = prev; vs.end = null; vs.abrupt = false; vs.resumes = (vs.resumes||0)+1;
+  } else {
+    vs = { id:'v'+Date.now().toString(36), start:Date.now(), end:null, build:BUILD, platform,
+           model:cfg.model, ids:[], manual:0, unparsed:[], dup:0, learned:0, wfix:0, lat:[],
+           bg:0, late:0, blockedN:0, blockedMs:0, errors:0, errLog:[], resumes:0, native:null };
+  }
+  vsSave();
+}
+function vsEnd(){
+  if(!vs) return null;
+  const s = vs; s.end = Date.now(); vsPut(s); vs = null;
+  return s;
+}
+function vsBump(k, n){ if(!vs) return; vs[k] = (vs[k]||0) + (n==null?1:n); vsSave(); }
+function vsPush(k, v, cap){ if(!vs) return; (vs[k] = vs[k]||[]).push(v); while(vs[k].length>(cap||40)) vs[k].shift(); vsSave(); }
+// アプリ版：録音側（ネイティブ）が持っている中断・再開・通信のやり直しの記録を取り込む
+async function vsPullNative(target){
+  if(!NativeVoice || !NativeVoice.diag) return;
+  try {
+    const d = await NativeVoice.diag();
+    const s = target || vs;
+    if(!d || !s || d.sid!==s.id) return;
+    s.native = { stats: d.stats||{}, events: (d.events||[]).slice(-80), retryWaiting: d.retryWaiting||0 };
+    // 途中でアプリが終了していた時は、最後に音が届いた時刻を終わりとみなす
+    if(s.abrupt && d.stats && d.stats.lastAudioAt) s.end = Math.max(s.end||0, Math.round(d.stats.lastAudioAt));
+    if(s===vs) vsSave(); else vsPut(s);
+  } catch(_) {}
+}
+// 止めずにアプリが閉じられたセッションは、最後の動きで締める
+function vsRecover(){
+  const all = vsAll(); let open = null;
+  for(const s of all) if(!s.end){ s.end = s.last||s.start; s.abrupt = true; open = s; }
+  if(open){ try { localStorage.setItem(VS_KEY, JSON.stringify(all)); } catch(_) {} if(IS_NATIVE) vsPullNative(open); }
+}
+
+function vsSummary(s){
+  const rows = state.sets.filter(r => r.sid===s.id && r.src==='voice');
+  const rec = (s.ids||[]).length;
+  const deleted = Math.max(0, rec - rows.length);
+  const edited = rows.filter(r => r.edited).length;
+  const unparsed = (s.unparsed||[]).length;
+  // 声で取れなかったセットは、利用者が手で足すので「録音中の手入力」で数える
+  // （記録できなかった発話は雑談も含むので分母に入れず、レポートで中身を見せる）
+  const misses = (s.manual||0);
+  const said = rec + misses;                        // 記録しようとした回数の推定
+  const ok = Math.max(0, rec - edited - deleted);
+  const lat = (s.lat||[]).slice().sort((a,b)=>a-b);
+  const q = p => lat.length ? lat[Math.min(lat.length-1, Math.round(p*(lat.length-1)))]/1000 : null;
+  const n = (s.native && s.native.stats) || {};
+  const downMs = (s.blockedMs||0) + (n.downMs||0);
+  return {
+    rows, rec, deleted, edited, unparsed, misses, said, ok,
+    acc: said ? ok/said : null, med: q(0.5), p90: q(0.9),
+    min: Math.round(((s.end||Date.now()) - s.start)/60000),
+    downSec: Math.round(downMs/1000), n,
+    stops: (s.blockedN||0) + (n.interrupts||0) + (n.stalls||0),
+  };
+}
+// 判定の目安（docs/VALIDATION.md と同じ）
+function vsVerdicts(s, m){
+  const v = [];
+  const mark = (ok, warn) => ok ? '○' : (warn ? '△' : '×');
+  v.push(['精度', m.said<10 ? '－' : mark(m.acc>=0.9, m.acc>=0.8),
+    m.said ? `${Math.round((m.acc||0)*100)}%（${m.ok}/${m.said}）` : '記録なし']);
+  v.push(['学習', (s.learned||0)+(s.wfix||0) > 0 ? '○' : '－',
+    `自動で直した ${(s.learned||0)+(s.wfix||0)}件（言い方${s.learned||0}・重量${s.wfix||0}）`]);
+  v.push(['速さ', m.med==null ? '－' : mark(m.med<=2.0 && m.p90<=3.5, m.med<=3.0),
+    m.med==null ? '計測なし' : `ふだん${m.med.toFixed(1)}秒・遅い時${m.p90.toFixed(1)}秒`]);
+  v.push(['音楽・連続', mark(m.downSec<=30, m.downSec<=120),
+    `止まっていた ${m.downSec}秒（${m.stops}回）`]);
+  if(s.platform==='app') v.push(['画面ロック中', (s.bg||0)>0 ? '○' : '－', `${s.bg||0}件記録`]);
+  v.push(['時間', m.min>=100 ? '○' : '－', `${m.min}分`]);
+  return v;
+}
+const VS_KIND = { interrupt:'中断', resume:'再開', stall:'音が途切れ→再起動', restart_fail:'再開できず',
+  queued:'通信できず端末に保存', late:'保存分をあとで記録', fail:'認識できず破棄', route:'イヤホン切替',
+  reset:'音声システムのリセット', notify:'止まったことを通知', start:'開始', stop:'停止' };
+function vsText(limit){
+  const all = vsAll().filter(s => (s.ids||[]).length || (s.end||Date.now())-s.start > 60000).reverse().slice(0, limit||5);
+  if(!all.length) return 'TalkFit 検証レポート：まだ記録がありません';
+  const t = ms => new Date(ms).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const d = ms => { const x=new Date(ms); return `${x.getMonth()+1}/${x.getDate()}`; };
+  const out = [`TalkFit 検証レポート（build ${BUILD}・${IS_NATIVE?'アプリ版':'Web版'}）`];
+  all.forEach((s, i) => {
+    const m = vsSummary(s);
+    out.push('', `■ ${d(s.start)} ${t(s.start)}〜${t(s.end||Date.now())}（${m.min}分・${s.platform==='app'?'アプリ版':'Web版'}・build ${s.build}・${s.model||''}）${s.abrupt?' ※途中でアプリが閉じた':''}`);
+    for(const [k, mk, txt] of vsVerdicts(s, m)) out.push(`${mk} ${k}：${txt}`);
+    out.push(`内訳：声で記録${m.rec}・あとで修正${m.edited}・削除${m.deleted}・手で追加${s.manual||0}・記録できず${m.unparsed}・重複スキップ${s.dup||0}・エラー${s.errors||0}`);
+    if(m.n.queued || s.late) out.push(`通信：端末に保存${m.n.queued||0}件・あとで記録${s.late||0}件${s.native&&s.native.retryWaiting?`・送信待ち${s.native.retryWaiting}件`:''}`);
+    if(i>0) return;                                 // 中身は直近のセッションだけ
+    if(m.rows.length || m.deleted){
+      out.push('記録の中身：');
+      for(const r of m.rows){
+        const o = r.orig ? `（最初は ${r.orig.exercise||'?'} ${r.orig.weight!=null?r.orig.weight+'kg×':''}${r.orig.reps!=null?r.orig.reps+'回':''}）` : '';
+        out.push(`  ${t(r.ts)} 「${r.transcript}」→ ${r.exercise||'?'} ${fmtSet(r)}${o}${r.raw&&r.raw.weight_fixed_from!=null?` [${r.raw.weight_fixed_from}kgを補正]`:''}${r.raw&&r.raw.learned_alias?' [覚えた言い方]':''}`);
+      }
+    }
+    if(m.unparsed) out.push('記録できず：' + s.unparsed.map(x => `「${x}」`).join(' '));
+    if(s.errLog && s.errLog.length) out.push('エラー：' + s.errLog.slice(-8).join(' / '));
+    const ev = (s.native && s.native.events || []).filter(e => e.k!=='start' && e.k!=='stop');
+    if(ev.length) out.push('録音側の出来事：', ...ev.slice(-30).map(e => `  ${t(e.t)} ${VS_KIND[e.k]||e.k}${e.bg?'（画面ロック中）':''} ${e.m||''}`));
+  });
+  return out.join('\n');
+}
+function renderVerify(){
+  const el = document.getElementById('verifyList');
+  if(!el) return;
+  const all = vsAll().filter(s => (s.ids||[]).length || (s.end||Date.now())-s.start > 60000).reverse().slice(0, 6);
+  if(!all.length){ el.innerHTML = '<div class="learn-empty">録音を始めると、ここに結果が出ます</div>'; return; }
+  el.innerHTML = all.map(s => {
+    const m = vsSummary(s), x = new Date(s.start);
+    const head = `${x.getMonth()+1}/${x.getDate()} ${String(x.getHours()).padStart(2,'0')}:${String(x.getMinutes()).padStart(2,'0')}・${m.min}分・${s.platform==='app'?'アプリ版':'Web版'}${(vs&&s.id===vs.id)||!s.end?'・記録中':''}`;
+    return `<div class="vs-card"><div class="vs-head">${esc(head)}</div>`
+      + vsVerdicts(s, m).map(([k, mk, txt]) => `<div class="vs-row"><span class="vs-mk vs-${mk==='○'?'ok':mk==='△'?'warn':mk==='×'?'bad':'na'}">${mk}</span><span class="vs-k">${esc(k)}</span><span>${esc(txt)}</span></div>`).join('')
+      + '</div>';
+  }).join('');
+}
+
 // ───── マイクを止められたことの検知 ─────
 // iPhoneのWebアプリは、録音中に他のアプリ（Spotify等）が音を流すと、iOSにマイクを止められる。
 // 止められても何のエラーも出ないため、利用者には「言ったのに記録されない」としか見えない。
@@ -2711,14 +2893,17 @@ function setMicBlocked(on, reason, source){
   if(el) el.style.display = on ? 'flex' : 'none';
   if(on){
     micBlockedSince=Date.now();
+    vsBump('blockedN');
     logEvent('マイクが止められた（'+reason+'）：他のアプリが音を流している可能性');
     track('mic_blocked');
     if(document.visibilityState==='visible' && navigator.vibrate) navigator.vibrate([80,80,80]);
   } else {
+    vsBump('blockedMs', Date.now()-micBlockedSince);
     logEvent(`マイク再開（${((Date.now()-micBlockedSince)/1000).toFixed(0)}秒止まっていた）`);
   }
 }
 function resetMicBlocked(){
+  if(micBlocked) vsBump('blockedMs', Date.now()-micBlockedSince);
   micBlocked=false; micBlockedBy=''; silentSince=0; lastFrameAt=0;
   const el=document.getElementById('micBlocked'); if(el) el.style.display='none';
 }
@@ -2760,7 +2945,7 @@ function nativeConfig(){
   return {
     mode: useBackend() ? 'server' : 'direct', apiKey: cfg.apiKey||'', apiBase: API_BASE||'',
     device: DEVICE_ID, model: cfg.model||'gpt-4o-transcribe', language: cfg.lang||'ja',
-    prompt: whisperPrompt(), tailMs: 800, marginDb: 12,
+    prompt: whisperPrompt(), tailMs: 800, marginDb: 12, sid: vs ? vs.id : '',
   };
 }
 // 書き起こし1件を順番に処理する。同じものが二度届いても一度しか記録しない
@@ -2770,7 +2955,7 @@ function handleNativeItem(it){
   nativeChain = nativeChain.then(async () => {
     try {
       await processTranscript(it.text, { ts: it.ts, speechEndAt: it.speechEndAt, cutAt: it.cutAt,
-        blobAt: it.cutAt, sendAt: it.sendAt, apiDoneAt: it.apiDoneAt });
+        blobAt: it.cutAt, sendAt: it.sendAt, apiDoneAt: it.apiDoneAt, bg: !!it.bg, late: !!it.late });
     } catch(e){ logEvent('処理エラー: '+e.message); }
     try { await NativeVoice.ack({ ids:[it.id] }); } catch(_) {}
     try { await NativeVoice.updateConfig({ prompt: whisperPrompt() }); } catch(_) {}
@@ -2786,6 +2971,7 @@ async function drainNative(){
     for(const it of items) handleNativeItem(it);
     await nativeChain;
   } catch(e){ logEvent('待ち行列の読み込みエラー: '+e.message); }
+  if(vs) vsPullNative();
 }
 function nativeBars(db){
   const bars=document.querySelectorAll('.waveform .bar');
@@ -2814,7 +3000,9 @@ async function startNativeCapture(){
       nativeSubs.push(await NativeVoice.addListener('state', e => onNativeState(e.state)));
       nativeSubs.push(await NativeVoice.addListener('error', onNativeError));
     }
-    await NativeVoice.start(nativeConfig());
+    vsStart('app');
+    try { await NativeVoice.start(nativeConfig()); }
+    catch(e){ vsEnd(); throw e; }
     nativeLive = true;
     if(!state.sessionStart) state.sessionStart=Date.now();
     recState='live'; setUiLive(true); saveState(); track('voice_start');
@@ -3004,6 +3192,8 @@ async function startCapture(){
     },400);
     if(!state.sessionStart) state.sessionStart=Date.now();
     recState='live'; setUiLive(true); saveState(); track('voice_start');
+    vsStart('web');
+    holdScreen();
     // ハンズフリーは、マイクが開いた瞬間から勝手に録り続ける
     if(cfg.micMode!=='ptt') startAuto();
     elapsedTimer=setInterval(()=>{
@@ -3018,9 +3208,13 @@ async function startCapture(){
 }
 
 function stopCapture(){
+  const wasNative = nativeLive;
   if(nativeLive){ nativeLive=false; try { NativeVoice.stop(); } catch(_) {} }
   recState='idle';
   resetMicBlocked();
+  releaseScreen();
+  const ended = vsEnd();
+  if(wasNative && ended) setTimeout(()=>vsPullNative(ended), 300);
   autoOn=false; clearTimeout(chunkGuardTimer);
   stopKeepAwake();
   // 送信待ちのまま止められた場合は捨てる。onstop を外してから止めないと
@@ -3227,6 +3421,7 @@ async function processTranscript(text, meta){
       if (pendingPartial && pendingPartial.text===text) {
         pendingPartial = null;
         logEvent('回数が来なかったため記録せず: '+text);
+        vsPush('unparsed', text);
         setTranscript('「'+text+'」回数が聞き取れませんでした', false);
       }
     }, PARTIAL_HOLD_MS);
@@ -3234,12 +3429,13 @@ async function processTranscript(text, meta){
   }
 
   let parsed;
+  learnHit = false;
   try{ parsed=await parseUtterance(text); }
   catch(e){ logEvent('解析エラー: '+e.message); toast('解析できませんでした','bad'); return; }
   if(!parsed){
     logEvent('解析→ 記録対象なし');
     // 数字を含む発話は記録するつもりだったはず。無反応で終わらせない。
-    if(/\d/.test(text)) setTranscript(text+' → 記録できず',false);
+    if(/\d/.test(text)){ setTranscript(text+' → 記録できず',false); vsPush('unparsed', text); }
     return;
   }
   logEvent('解析→ '+JSON.stringify({e:parsed.exercise,w:parsed.weight,r:parsed.reps,s:parsed.seconds}));
@@ -3260,6 +3456,7 @@ async function processTranscript(text, meta){
     const last = state.sets[state.sets.length-1];
     if(!last){ setTranscript('直す記録がありません',false); return; }
     const beforeFix = { exercise:last.exercise, weight:last.weight, reps:last.reps };
+    if(!last.orig) last.orig = beforeFix;
     if(parsed.exercise!=null) last.exercise = parsed.exercise;
     if(parsed.weight  !=null) last.weight   = parsed.weight;
     if(parsed.reps    !=null) last.reps     = parsed.reps;
@@ -3311,6 +3508,7 @@ async function processTranscript(text, meta){
     const sig = [parsed.exercise,parsed.weight,parsed.reps,parsed.seconds].join('/');
     if(sig===lastAddSig && Date.now()-lastAddAt < 9000){
       logEvent('重複のためスキップ: '+sig);
+      vsBump('dup');
       setTranscript('（同じ内容のためスキップ）', false);
       return;
     }
@@ -3323,9 +3521,18 @@ async function processTranscript(text, meta){
         id:'r'+Date.now()+i+Math.random().toString(36).slice(2,6),
         ts:(meta.ts||Date.now())+i, exercise:parsed.exercise||null,
         weight:parsed.weight, reps:parsed.reps, seconds:parsed.seconds??null,
-        transcript:text, raw:parsed,
+        transcript:text, raw:parsed, src:'voice', sid: vs ? vs.id : null,
       };
       state.sets.push(row);
+      if(vs) (vs.ids = vs.ids||[]).push(row.id);
+    }
+    if(learnHit) parsed.learned_alias = true;
+    if(vs){
+      if(learnHit) vs.learned=(vs.learned||0)+1;
+      if(parsed.weight_fixed_from!=null) vs.wfix=(vs.wfix||0)+1;
+      if(meta.bg) vs.bg=(vs.bg||0)+1;
+      if(meta.late) vs.late=(vs.late||0)+1;
+      vsSave();
     }
     saveState();
     // 保存と描画を分けて記録する。今回のバグは「保存はできていたが描画で落ちていた」で、
@@ -3346,7 +3553,7 @@ async function processTranscript(text, meta){
 
 // 話し終わりから記録までの時間を内訳つきで残す（遅さの原因を推測でなく数字で見る）
 function logLatency(meta){
-  if(!meta || !meta.speechEndAt) return;
+  if(!meta || !meta.speechEndAt || meta.late) return;   // 通信が戻ってから送った分は速さに含めない
   const now = Date.now(), f = ms => (Math.max(0,ms)/1000).toFixed(1);
   const total = now - meta.speechEndAt;
   logEvent(`速度 ${f(total)}秒（区切り待ち${f(meta.cutAt-meta.speechEndAt)} 録音確定${f(meta.blobAt-meta.cutAt)}`
@@ -3354,6 +3561,7 @@ function logLatency(meta){
   try {
     const k='talkfit_latency', a=JSON.parse(localStorage.getItem(k)||'[]');
     a.push(Math.round(total)); while(a.length>50) a.shift();
+    vsPush('lat', Math.round(total), 400);
     localStorage.setItem(k, JSON.stringify(a));
   } catch(_) {}
 }
@@ -3874,6 +4082,7 @@ if(!localStorage.getItem(LS_ONBOARD)) {
 render();
 track('app_open');
 refreshPlan().then(handleCheckoutReturn);
+vsRecover();
 if(IS_NATIVE) drainNative();
 </script>
 <!-- Onboarding Overlay (shown on first launch only) -->

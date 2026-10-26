@@ -13,7 +13,8 @@
 - `docs/` — ローンチ計画（LAUNCH.md）と集客の素材（GROWTH.md）
 - `tests/e2e.py` — 実ブラウザ（偽マイク）＋実Workerランタイムで、記録→課金→引き継ぎまで通す
 - `app-ios/` — iPhoneアプリ版（Capacitor）。録音だけネイティブ（`TalkFitVoicePlugin.swift`）で、音楽と共存させる。手順は `app-ios/README.md`
-- `tests/learning.py`（精度・学習）、`tests/native.py`（アプリ版のJS側）
+- `tests/learning.py`（精度・学習）、`tests/native.py`（アプリ版のJS側）、`tests/verify.py`（検証レポート）
+- `docs/VALIDATION.md` — ローンチ前の実機検証の手順と合格ライン（アプリの「検証レポート」と同じ基準）
 
 ## 守ること
 
@@ -22,7 +23,7 @@
 - APIキーをリポジトリに絶対に書かない（Public リポジトリ。GitHub の検出で自動失効した過去がある）
 - 課金判定はサーバー（`worker/src/index.js` の `entitlement`）に集約する。アプリ側の判定は表示用
 - 計測イベント名は Worker の `EVENT_NAMES` に追加しないと捨てられる
-- 変更後は `cd worker && npm test`、`python3 tests/e2e.py`、`python3 tests/learning.py` を通す
+- 変更後は `cd worker && npm test`、`python3 tests/e2e.py`、`python3 tests/learning.py`、`python3 tests/native.py`、`python3 tests/verify.py` を通す
 - 認識のヒント文（whisperPrompt）に数字の例文を入れない（無音区間で例文そのものが書き起こされ、架空のセットが増える）
 - 個人学習は `state.learn`（alias / numFix / noFix）。重量の自動補正は履歴3件以上の種目だけ
 - コミットメッセージは日本語で、なぜ変えたかを書く

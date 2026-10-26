@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import UIKit
 import Capacitor
+import UserNotifications
 
 /// 声の録音・区切り・書き起こしをネイティブで行うプラグイン。
 ///
@@ -11,6 +12,12 @@ import Capacitor
 ///
 /// 流れ：マイク → 16kHz に変換 → 音量で発話区間を切り出す → WAV にして書き起こし API へ
 ///       → 結果を端末内の待ち行列に保存し JS に通知（JS が止まっていても失われない）
+///
+/// 2時間の連続録音のための備え：
+/// - 見張り（2秒ごと）：音が5秒届かなければ録り直す。中断から戻れなければ10秒ごとに再開を試す
+/// - 止まったまま30秒たったら通知で知らせる（ポケットの中でも気づける）
+/// - 通信できなかった発話は端末に保存し、通信が戻ったら送る（地下のジムでも取りこぼさない）
+/// - 中断・再開・失敗は端末に記録し、検証レポートに出す（画面ロック中は JS が止まっているため）
 @objc(TalkFitVoicePlugin)
 public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "TalkFitVoicePlugin"
@@ -22,6 +29,7 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "ack", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updateConfig", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "chime", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "diag", returnType: CAPPluginReturnPromise),
     ]
 
     // ── 録音 ──
@@ -29,6 +37,7 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     private var engine = AVAudioEngine()
     private var player = AVAudioPlayerNode()
     private var chimeBuffer: AVAudioPCMBuffer?
+    private var errorBuffer: AVAudioPCMBuffer?
     private var converter: AVAudioConverter?
     private let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000,
                                              channels: 1, interleaved: false)!
@@ -65,13 +74,61 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     private var lastVoiceFrame = 0
     private var segStartFrame = 0
     private var lastLevelAt = Date.distantPast
+    private var lastBufferAt = Date()   // 最後にマイクの音が届いた時刻（work キュー）
 
     private let pendingKey = "talkfit.pending"
+
+    // ── 見張り・止まっていた時間（メインスレッドだけで触る）──
+    private var watchdog: DispatchSourceTimer?
+    private var downSince: Date?
+    private var lastRestartTry = Date.distantPast
+    private var lastFlushTry = Date.distantPast
+    private var flushing = false
+    private var lastFailMsg = ""
+    private var lastFailAt = Date.distantPast
+    private let stoppedNoticeId = "talkfit.stopped"
+
+    // ── 検証用の記録（store キューだけで触る）──
+    private let diagKey = "talkfit.diag"
+    private var sid = ""
+    private var stats: [String: Double] = [:]
+    private var events: [[String: Any]] = []
+
+    private static let retryDir: URL = {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let d = base.appendingPathComponent("talkfit-retry", isDirectory: true)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }()
+
+    private var diagLoaded = false
+
+    /// 前回の記録を読み込む（アプリが途中で終了していても、検証レポートに残すため）。store キューで呼ぶ
+    private func loadDiagIfNeeded() {
+        guard !diagLoaded else { return }
+        diagLoaded = true
+        if let d = UserDefaults.standard.dictionary(forKey: diagKey) {
+            sid = (d["sid"] as? String) ?? ""
+            stats = (d["stats"] as? [String: Double]) ?? [:]
+            events = (d["events"] as? [[String: Any]]) ?? []
+        }
+    }
 
     // MARK: - JS から呼ばれるメソッド
 
     @objc func start(_ call: CAPPluginCall) {
         applyConfig(call)
+        let newSid = call.getString("sid") ?? ""
+        store.sync {
+            self.loadDiagIfNeeded()
+            // 同じ検証セッションの続き（マイクの取り直し等）なら記録を引き継ぐ
+            if newSid.isEmpty || newSid != self.sid {
+                self.sid = newSid
+                self.stats = ["startedAt": self.ms(Date())]
+                self.events = []
+            }
+            self.persistDiag()
+        }
         requestMic { granted in
             guard granted else {
                 call.reject("マイクの使用が許可されていません。設定アプリ → TalkFit → マイク をオンにしてください", "denied")
@@ -82,6 +139,10 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
                     self.wanted = true
                     self.observe()
                     try self.startEngine()
+                    self.startWatchdog()
+                    self.note("start", "")
+                    // 録音が止まった時に知らせるための許可（初回だけ確認が出る）
+                    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
                     call.resolve(["running": true])
                 } catch {
                     self.wanted = false
@@ -94,8 +155,12 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func stop(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.wanted = false
+            self.markUp(silent: true)
+            self.stopWatchdog()
             self.teardownEngine()
             self.unobserve()
+            self.setStat("lastAudioAt", self.ms(self.work.sync { self.lastBufferAt }))
+            self.note("stop", "")
             try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
             self.emit("state", ["state": "stopped"])
             call.resolve()
@@ -123,6 +188,15 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func chime(_ call: CAPPluginCall) {
         playChime()
         call.resolve()
+    }
+
+    @objc func diag(_ call: CAPPluginCall) {
+        var out: [String: Any] = store.sync { () -> [String: Any] in
+            self.loadDiagIfNeeded()
+            return ["sid": self.sid, "stats": self.stats, "events": self.events]
+        }
+        out["retryWaiting"] = retryFiles().count
+        call.resolve(out)
     }
 
     private func applyConfig(_ call: CAPPluginCall) {
@@ -173,11 +247,13 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         let outFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
         engine.connect(player, to: engine.mainMixerNode, format: outFormat)
         if chimeBuffer == nil { chimeBuffer = makeChime(format: outFormat) }
+        if errorBuffer == nil { errorBuffer = makeErrorTone(format: outFormat) }
 
         engine.prepare()
         try engine.start()
         running = true
-        work.async { self.resetVad() }
+        work.async { self.resetVad(); self.lastBufferAt = Date() }
+        markUp(silent: false)
         emit("state", ["state": "listening"])
     }
 
@@ -191,12 +267,88 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func restart(_ reason: String) {
         guard wanted else { return }
+        lastRestartTry = Date()
         teardownEngine()
         do {
             try startEngine()
+            bump("restarts")
         } catch {
-            emit("error", ["status": 0, "message": "録音を再開できません（\(reason)）: \(error.localizedDescription)"])
+            markDown(since: Date())
+            let msg = "\(reason): \(error.localizedDescription)"
+            // 同じ失敗を10秒ごとに記録し続けないよう、1分に1回にまとめる
+            if msg != lastFailMsg || Date().timeIntervalSince(lastFailAt) > 60 {
+                lastFailMsg = msg; lastFailAt = Date()
+                note("restart_fail", msg, count: "restartFails")
+                emit("error", ["status": 0, "message": "録音を再開できません（\(reason)）: \(error.localizedDescription)"])
+            }
         }
+    }
+
+    // MARK: - 見張り（メインスレッド）
+
+    private func startWatchdog() {
+        guard watchdog == nil else { return }
+        let t = DispatchSource.makeTimerSource(queue: .main)
+        t.schedule(deadline: .now() + 2, repeating: 2)
+        t.setEventHandler { [weak self] in self?.tick() }
+        t.resume()
+        watchdog = t
+    }
+
+    private func stopWatchdog() {
+        watchdog?.cancel()
+        watchdog = nil
+    }
+
+    private func tick() {
+        guard wanted else { return }
+        let now = Date()
+        if running {
+            let last = work.sync { self.lastBufferAt }
+            setStat("lastAudioAt", ms(last))
+            if now.timeIntervalSince(last) > 5 {
+                // 録音中のはずなのに音が届かない（他のアプリにマイクを取られた等）
+                note("stall", "\(Int(now.timeIntervalSince(last)))秒", count: "stalls")
+                markDown(since: last)
+                restart("音が届かない")
+            }
+        } else if now.timeIntervalSince(lastRestartTry) >= 10 {
+            restart("再開の再試行")
+        }
+        if now.timeIntervalSince(lastFlushTry) >= 30 {
+            lastFlushTry = now
+            flushRetry()
+        }
+    }
+
+    /// 録音が止まった。30秒たっても戻らなければ通知が出るよう予約しておく
+    /// （止まっている間はアプリ自体が眠らされることがあるので、先に予約する）
+    private func markDown(since: Date) {
+        guard downSince == nil else { return }
+        downSince = since
+        let c = UNMutableNotificationContent()
+        c.title = "TalkFit の録音が止まっています"
+        c.body = "アプリを開くと再開します"
+        c.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 30, repeats: false)
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: stoppedNoticeId, content: c, trigger: trigger))
+    }
+
+    /// 録音が戻った。止まっていた時間を記録し、予約した通知を取り消す
+    private func markUp(silent: Bool) {
+        guard let d = downSince else { return }
+        downSince = nil
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [stoppedNoticeId])
+        center.removeDeliveredNotifications(withIdentifiers: [stoppedNoticeId])
+        let downMs = max(0, Date().timeIntervalSince(d) * 1000)
+        bump("downMs", downMs)
+        store.async {
+            self.stats["maxDownMs"] = max(self.stats["maxDownMs"] ?? 0, downMs)
+            self.persistDiag()
+        }
+        if !silent { note("resume", "\(Int(downMs / 1000))秒止まっていた") }
     }
 
     private func observe() {
@@ -214,13 +366,19 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
                                         object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
             self.running = false
+            self.note("reset", "", count: "resets")
+            self.markDown(since: Date())
             self.engine = AVAudioEngine()
             self.player = AVAudioPlayerNode()
             self.restart("media services reset")
         })
         observers.append(nc.addObserver(forName: UIApplication.didBecomeActiveNotification,
                                         object: nil, queue: .main) { [weak self] _ in
-            self?.appActive = true
+            guard let self = self else { return }
+            self.appActive = true
+            // 画面ロック中に戻れなかった録音は、開いた瞬間に再開する
+            if self.wanted && !self.running { self.restart("アプリを開いた") }
+            self.flushRetry()
         })
         observers.append(nc.addObserver(forName: UIApplication.willResignActiveNotification,
                                         object: nil, queue: .main) { [weak self] _ in
@@ -237,8 +395,10 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         guard let raw = n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
         if type == .began {
-            // 電話・アラームなど。終わったら自動で再開する
+            // 電話・アラーム・Siri など。終わったら自動で再開する
             running = false
+            markDown(since: Date())
+            note("interrupt", "", count: "interrupts")
             emit("state", ["state": "interrupted"])
         } else {
             restart("interruption ended")
@@ -252,6 +412,7 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         // イヤホンの抜き差しで入力の形式が変わると、タップが無音になることがある。
         // categoryChange は自分の setCategory でも起きるので対象外（再起動が止まらなくなる）
         if reason == .newDeviceAvailable || reason == .oldDeviceUnavailable {
+            note("route", reason == .newDeviceAvailable ? "つながった" : "外れた")
             restart("route change")
         }
     }
@@ -286,6 +447,7 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func process(_ samples: [Float]) {
+        lastBufferAt = Date()
         carry.append(contentsOf: samples)
         var i = 0
         while carry.count - i >= frameLen {
@@ -358,6 +520,7 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
             "speechEndAt": ms(now.addingTimeInterval(-silentMs / 1000)),
             "cutAt": ms(now),
         ]
+        bump("segments")
         emit("state", ["state": "recognizing"])
         transcribe(audio, meta: meta)
     }
@@ -366,21 +529,25 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func transcribe(_ samples: [Float], meta: [String: Double]) {
         let wav = TalkFitVoicePlugin.wavData(samples, sampleRate: 16000)
-        let sec = Double(samples.count) / 16000
+        var m = meta
+        m["sec"] = Double(samples.count) / 16000
+        m["sendAt"] = ms(Date())
+        send(wav: wav, meta: m, attempt: 0, savedId: nil)
+    }
+
+    private func makeRequest(wav: Data, sec: Double) -> URLRequest? {
         let boundary = "talkfit-\(UUID().uuidString)"
         var fields: [(String, String)] = [("response_format", "text"), ("language", language)]
         if !prompt.isEmpty { fields.append(("prompt", prompt)) }
 
         var req: URLRequest
         if mode == "server" {
-            guard let url = URL(string: apiBase + "/v1/transcribe") else {
-                emit("error", ["status": 0, "message": "サーバーのURLが正しくありません"])
-                return
-            }
+            guard let url = URL(string: apiBase + "/v1/transcribe") else { return nil }
             req = URLRequest(url: url)
             req.setValue(deviceId, forHTTPHeaderField: "X-Device")
             req.setValue(String(format: "%.1f", sec), forHTTPHeaderField: "X-Audio-Sec")
         } else {
+            guard !apiKey.isEmpty else { return nil }
             req = URLRequest(url: URL(string: "https://api.openai.com/v1/audio/transcriptions")!)
             req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             fields.append(("model", model))
@@ -390,33 +557,51 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         req.timeoutInterval = 20
         req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         req.httpBody = TalkFitVoicePlugin.multipart(boundary: boundary, fields: fields, file: wav)
-
-        var m = meta
-        m["sendAt"] = ms(Date())
-        send(req, attempt: 0, meta: m)
+        return req
     }
 
-    private func send(_ req: URLRequest, attempt: Int, meta: [String: Double]) {
+    /// savedId：端末に保存しておいた発話を送り直している時のファイル名
+    private func send(wav: Data, meta: [String: Double], attempt: Int, savedId: String?) {
+        guard let req = makeRequest(wav: wav, sec: meta["sec"] ?? 1) else {
+            if savedId != nil { DispatchQueue.main.async { self.flushing = false } }
+            else { emit("error", ["status": 0, "message": "サーバーのURLかキーが設定されていません"]) }
+            return
+        }
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
             guard let self = self else { return }
             let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
             let body = String(data: data ?? Data(), encoding: .utf8) ?? ""
+            let quota = body.contains("insufficient_quota")
 
-            // 通信の瞬断・混雑は一度だけ待ってやり直す（残高不足の 429 は除く）
-            let retryable = err != nil || status >= 500 || (status == 429 && !body.contains("insufficient_quota"))
-            if retryable && attempt < 1 {
-                DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) {
-                    self.send(req, attempt: attempt + 1, meta: meta)
+            // 通信の瞬断・混雑：2回まで待ってやり直し、だめなら端末に保存して後で送る
+            let retryable = err != nil || status >= 500 || (status == 429 && !quota)
+            if retryable {
+                if savedId != nil {                    // まだ通信が戻っていない。次の機会に
+                    DispatchQueue.main.async { self.flushing = false }
+                    return
                 }
+                if attempt < 2 {
+                    DispatchQueue.global().asyncAfter(deadline: .now() + (attempt == 0 ? 1.5 : 4)) {
+                        self.send(wav: wav, meta: meta, attempt: attempt + 1, savedId: nil)
+                    }
+                    return
+                }
+                self.saveRetry(wav: wav, meta: meta)
+                self.note("queued", err?.localizedDescription ?? "HTTP \(status)", count: "queued")
+                self.emit("state", ["state": "listening"])
                 return
             }
             guard err == nil, (200..<300).contains(status) else {
+                if let id = savedId { self.deleteRetry(id); DispatchQueue.main.async { self.flushing = false; self.flushRetry() } }
                 if status == 400 && body.contains("too_short") {
                     self.emit("state", ["state": "listening"])
                     return
                 }
                 var message = err?.localizedDescription ?? String(body.prefix(200))
-                if body.contains("insufficient_quota") { message = "insufficient_quota" }
+                if quota { message = "insufficient_quota" }
+                // 画面ロック中は JS に届かないので、端末の記録と「ブブッ」という音で残す
+                self.note("fail", "HTTP \(status) \(message.prefix(80))", count: "failed")
+                self.playErrorTone()
                 self.emit("error", ["status": status, "message": message])
                 self.emit("state", ["state": "listening"])
                 return
@@ -430,19 +615,77 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
             var m = meta
             m["apiDoneAt"] = self.ms(Date())
+            if let id = savedId {
+                m["late"] = 1
+                self.deleteRetry(id)
+                self.note("late", text, count: "late")
+            }
+            self.bump("ok")
             self.deliver(text: text, meta: m)
+            // 通信できている今のうちに、保存しておいた分も送る
+            DispatchQueue.main.async {
+                if savedId != nil { self.flushing = false }
+                self.flushRetry()
+            }
         }.resume()
+    }
+
+    // MARK: - 通信できなかった発話の保存と送り直し
+
+    private func retryFiles() -> [URL] {
+        let fm = FileManager.default
+        let all = (try? fm.contentsOfDirectory(at: TalkFitVoicePlugin.retryDir, includingPropertiesForKeys: nil)) ?? []
+        return all.filter { $0.pathExtension == "json" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    private func saveRetry(wav: Data, meta: [String: Double]) {
+        // ファイル名の先頭を時刻にして、古い順に送れるようにする
+        let id = String(format: "%013.0f", ms(Date())) + "-" + String(UUID().uuidString.prefix(8))
+        let dir = TalkFitVoicePlugin.retryDir
+        guard let json = try? JSONSerialization.data(withJSONObject: meta) else { return }
+        try? wav.write(to: dir.appendingPathComponent(id + ".wav"))
+        try? json.write(to: dir.appendingPathComponent(id + ".json"))
+        let files = retryFiles()
+        if files.count > 60 {
+            for f in files.prefix(files.count - 60) { deleteRetry(f.deletingPathExtension().lastPathComponent) }
+        }
+    }
+
+    private func deleteRetry(_ id: String) {
+        let dir = TalkFitVoicePlugin.retryDir
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent(id + ".wav"))
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent(id + ".json"))
+    }
+
+    /// 保存しておいた発話を1件ずつ送る（メインスレッド）
+    private func flushRetry() {
+        guard !flushing, let f = retryFiles().first else { return }
+        let id = f.deletingPathExtension().lastPathComponent
+        guard let md = try? Data(contentsOf: f),
+              let meta = (try? JSONSerialization.jsonObject(with: md)) as? [String: Double],
+              let wav = try? Data(contentsOf: TalkFitVoicePlugin.retryDir.appendingPathComponent(id + ".wav")) else {
+            deleteRetry(id)
+            return
+        }
+        flushing = true
+        var m = meta
+        m["sendAt"] = ms(Date())
+        send(wav: wav, meta: m, attempt: 0, savedId: id)
     }
 
     private func deliver(text: String, meta: [String: Double]) {
         emit("state", ["state": "listening"])
         guard text.count >= 2 else { return }
+        // URLSession の完了処理はメイン以外で動くので、メインに問い合わせてよい
+        let bg = Thread.isMainThread ? !appActive : DispatchQueue.main.sync { !self.appActive }
         var item: [String: Any] = [
             "id": UUID().uuidString,
             "text": text,
             "ts": meta["speechEndAt"] ?? ms(Date()),
+            "bg": bg ? 1 : 0,
         ]
         for (k, v) in meta { item[k] = v }
+        if bg { bump("bgDelivered") }
 
         // JS が止まっていても（画面ロック中など）失わないよう、先に端末へ保存する
         store.sync {
@@ -456,6 +699,36 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
             playChime()
         }
         emit("transcript", item, always: true)
+    }
+
+    // MARK: - 検証用の記録
+
+    private func persistDiag() {
+        UserDefaults.standard.set(["sid": sid, "stats": stats, "events": events], forKey: diagKey)
+    }
+
+    private func bump(_ key: String, _ by: Double = 1) {
+        store.async {
+            self.stats[key, default: 0] += by
+            self.persistDiag()
+        }
+    }
+
+    private func setStat(_ key: String, _ v: Double) {
+        store.async {
+            self.stats[key] = v
+            self.persistDiag()
+        }
+    }
+
+    private func note(_ kind: String, _ message: String, count: String? = nil) {
+        let e: [String: Any] = ["t": ms(Date()), "k": kind, "m": String(message.prefix(120)), "bg": appActive ? 0 : 1]
+        store.async {
+            self.events.append(e)
+            if self.events.count > 150 { self.events.removeFirst(self.events.count - 150) }
+            if let c = count { self.stats[c, default: 0] += 1 }
+            self.persistDiag()
+        }
     }
 
     // MARK: - 待ち行列
@@ -502,6 +775,31 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
             ch[i] = Float(sin(phase) * env * 0.22)
         }
         return b
+    }
+
+    /// 認識に失敗して記録できなかった時の音（低い「ブブッ」）
+    private func makeErrorTone(format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        let sr = format.sampleRate
+        let n = AVAudioFrameCount(sr * 0.32)
+        guard let b = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: n),
+              let ch = b.floatChannelData?[0] else { return nil }
+        b.frameLength = n
+        var phase = 0.0
+        for i in 0..<Int(n) {
+            let t = Double(i) / sr
+            let on = t < 0.12 || (t > 0.18 && t < 0.30)
+            phase += 2 * Double.pi * 220 / sr
+            ch[i] = on ? Float(sin(phase) * 0.18) : 0
+        }
+        return b
+    }
+
+    private func playErrorTone() {
+        DispatchQueue.main.async {
+            guard self.running, let b = self.errorBuffer else { return }
+            self.player.scheduleBuffer(b, at: nil, options: .interrupts, completionHandler: nil)
+            if !self.player.isPlaying { self.player.play() }
+        }
     }
 
     private func playChime() {
