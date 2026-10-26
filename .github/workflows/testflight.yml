@@ -27,9 +27,10 @@ jobs:
         working-directory: .
         run: |
           missing=""
-          for k in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 TEAM_ID; do
-            [ -z "${!k}" ] && missing="$missing $k"
-          done
+          [ -z "$ASC_KEY_ID" ] && missing="$missing ASC_KEY_ID"
+          [ -z "$ASC_ISSUER_ID" ] && missing="$missing ASC_ISSUER_ID"
+          [ -z "$ASC_KEY_P8" ] && missing="$missing ASC_KEY_P8"
+          [ -z "$TEAM_ID" ] && missing="$missing APPLE_TEAM_ID"
           if [ -n "$missing" ]; then
             echo "::error::鍵が未登録です:${missing}（app-ios/TESTFLIGHT.md の 3章の手順で GitHub に登録してください）"
             exit 1
