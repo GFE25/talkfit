@@ -10,7 +10,7 @@
 <meta name="description" content="筋トレ中に声でつぶやくだけで、種目・重量・回数を自動で記録。スマホを触らない筋トレ記録アプリ。"/>
 <meta name="apple-mobile-web-app-title" content="TalkFit"/>
 <link rel="manifest" href="manifest.webmanifest"/>
-<script src="config.js?v=28"></script>
+<script src="config.js?v=29"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
 <!-- iOS Safari は index.html を平気で数時間キャッシュする。
@@ -369,8 +369,8 @@ input, select, textarea { font-family: inherit; }
 .set-delete:active { color: var(--red); }
 /* 現在の種目バー */
 .now-bar {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  margin: 0 0 4px; padding: 11px 14px; border-radius: var(--r-sm);
+  display: flex; align-items: center; gap: 8px; width: calc(100% - 40px); flex-shrink: 0;
+  margin: 0 20px 6px; padding: 11px 14px; border-radius: var(--r-sm);
   background: var(--surface); border: 1px solid var(--border2); text-align: left;
 }
 .now-bar:active { opacity: 0.7; }
@@ -633,6 +633,47 @@ input, select, textarea { font-family: inherit; }
 .mb-title{font-size:14px;font-weight:700;color:#FF6961}
 .mb-text{font-size:12.5px;color:var(--fg2);line-height:1.55}
 .learn-list{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+.rest-bar{display:none;flex-shrink:0;align-items:baseline;gap:8px;width:calc(100% - 40px);margin:0 20px 6px;padding:8px 14px;border-radius:var(--r-sm);background:var(--surface);font-size:13px}
+.rest-bar .rb-k{color:var(--fg2)}.rest-bar .rb-t{font-family:var(--mono);font-size:18px;font-weight:600}
+.rest-bar .rb-u{margin-left:auto;color:var(--fg2);font-size:12px}.rest-bar.over .rb-t{color:var(--yellow)}
+.finish-btn{flex-shrink:0;width:calc(100% - 40px);height:52px;margin:0 20px 10px;border-radius:var(--r);background:linear-gradient(135deg,#4F7FFF,#7B5CFF);color:#fff;font-size:16px;font-weight:700;letter-spacing:.3px;box-shadow:0 6px 24px var(--accent-glow)}
+.finish-btn:active{opacity:.85}
+.learn-profile{font-size:13px;line-height:1.7;color:var(--fg2);margin:6px 0}
+.learn-profile b{color:var(--fg);font-weight:600}
+.learn-row.auto span:first-child::after{content:'自動';margin-left:8px;font-size:10px;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:0 4px}
+.finish{position:fixed;inset:0;z-index:400;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:radial-gradient(900px 600px at 80% -10%,rgba(79,127,255,.38),transparent 60%),radial-gradient(700px 500px at 0% 30%,rgba(123,92,255,.22),transparent 60%),#0C0C0E;
+  opacity:0;transition:opacity .4s}
+.finish.vis{opacity:1}
+.fin-inner{max-width:430px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 28px) 20px 40px}
+.fin-eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--accent)}
+.fin-date{font-size:13px;color:var(--fg2);margin-top:4px}
+.fin-head{font-size:24px;font-weight:700;line-height:1.35;margin:18px 0 6px;letter-spacing:-.3px}
+.fin-sub{font-size:14px;color:var(--fg2);line-height:1.6}
+.fin-hero{margin:26px 0 4px}
+.fin-hero .lab{font-size:13px;color:var(--fg2)}
+.fin-vol{font-family:var(--mono);font-size:68px;font-weight:600;letter-spacing:-2px;line-height:1.05}
+.fin-vol small{font-size:24px;color:var(--fg2);margin-left:6px;letter-spacing:0}
+.fin-eq{margin-top:10px;font-size:17px;font-weight:600;line-height:1.5}
+.fin-eq em{font-style:normal;color:var(--yellow)}
+.fin-next{font-size:13px;color:var(--fg2);margin-top:4px}
+.fin-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:22px 0 14px}
+.fin-tile{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:12px;padding:12px 10px}
+.fin-tile .v{font-family:var(--mono);font-size:20px;font-weight:600}.fin-tile .k{font-size:11px;color:var(--fg2);margin-top:2px}
+.fin-card{position:relative;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:14px;padding:16px 16px 14px;margin-bottom:10px;opacity:0;transform:translateY(14px);animation:finIn .6s ease forwards}
+@keyframes finIn{to{opacity:1;transform:none}}
+.fin-card .lab{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--accent)}
+.fin-card .big{font-size:19px;font-weight:700;line-height:1.4;margin:6px 0 4px;padding-right:56px}
+.fin-card .txt{font-size:13px;color:var(--fg2);line-height:1.65}
+.fin-card .foot{font-size:11px;color:var(--fg3);margin-top:8px;line-height:1.5}
+.fin-card .ctl{position:absolute;top:8px;right:8px;display:flex;gap:2px}
+.fin-card .ctl button{width:30px;height:30px;border-radius:8px;color:var(--fg3);font-size:15px}
+.fin-card .ctl button.on{color:#FF6B8A}
+.fin-rows{margin-top:8px}.fin-rows div{display:flex;justify-content:space-between;gap:8px;font-size:14px;padding:5px 0;border-top:1px solid var(--border)}
+.fin-rows b{font-family:var(--mono);font-weight:600}.fin-rows .up{color:var(--green)}
+.fin-actions{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.fin-share{height:54px;border-radius:var(--r);background:linear-gradient(135deg,#4F7FFF,#7B5CFF);color:#fff;font-size:16px;font-weight:700}
+.fin-close{height:48px;border-radius:var(--r);background:rgba(255,255,255,.08);color:var(--fg);font-size:15px;font-weight:600}
 .vs-list{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
 .vs-card{background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5}
 .vs-head{font-weight:600;margin-bottom:4px}
@@ -734,6 +775,9 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
 
       <!-- iOS Safari は「ホーム画面に追加」していないサイトの保存データを、
            7日間開かないと消すことがある。記録が消える前に必ず案内する。 -->
+      <div class="rest-bar" id="restBar"></div>
+      <button class="finish-btn" id="finishBtn" style="display:none">筋トレを終了して結果を見る</button>
+
       <!-- 他のアプリ（Spotify等）にマイクを止められた時に出す -->
       <div class="mic-blocked" id="micBlocked" style="display:none">
         <div class="mb-title">音楽アプリにマイクを止められています</div>
@@ -1032,6 +1076,22 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
     <div class="form-help">記録を修正すると、どう聞き間違えたかを覚えて、次から自動で直します。重量は過去の記録と比べて、ありえない数字（十八と八十の取り違えなど）を補正します。</div>
   </div>
   <div class="form-group">
+    <label class="form-label">あなたの傾向（自動で学習）</label>
+    <div class="learn-profile" id="learnProfile"></div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">結果画面の好み</label>
+    <select class="form-select" id="compareTheme">
+      <option value="">例え：おまかせ（毎回変わる）</option>
+      <option value="vehicle">例え：乗り物</option>
+      <option value="animal">例え：動物</option>
+      <option value="landmark">例え：建造物</option>
+      <option value="science">例え：身近なもの</option>
+    </select>
+    <div class="form-help">筋トレ終了後の結果画面で、挙上量を何に例えるか。各カードの ♡ を押すと上に出やすく、✕ で非表示になります。下で戻せます。</div>
+    <div class="learn-list" id="insightPrefs" style="margin-top:8px"></div>
+  </div>
+  <div class="form-group">
     <label class="form-label">検証レポート</label>
     <div class="vs-list" id="verifyList"></div>
     <div class="form-help">録音を始めてから止めるまでを1回として、精度・学習・速さ・止まった時間を出します。○△×の目安は「docs/VALIDATION.md」と同じです。</div>
@@ -1094,7 +1154,7 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
 
 <script>
 // ───── Constants ─────
-const BUILD = 28; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 29; // 実機が動かしているコードの世代を特定するための番号
 // ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
 try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
 // ───── Backend ─────
@@ -1539,6 +1599,7 @@ function renderRecord() {
   const exs = new Set(sets.filter(s=>s.exercise).map(s=>s.exercise));
   document.getElementById('heroVol').textContent = vol.toLocaleString();
   document.getElementById('heroMeta').textContent = `${sets.length}セット · ${exs.size}種目`;
+  document.getElementById('finishBtn').style.display = sets.length ? '' : 'none';
 
   // Ring center: set count + last exercise
   document.getElementById('ringSetNum').textContent = sets.length;
@@ -1938,8 +1999,11 @@ function fillSettingsForm() {
   document.getElementById('lang').value=cfg.lang;
   document.getElementById('debugMode').value=cfg.debugMode||'off';
   document.getElementById('aliases').value=cfg.aliases;
+  document.getElementById('compareTheme').value=cfg.compareTheme||'';
   document.getElementById('diagLog').textContent = recLog.join('\n') || '（まだありません）';
   renderLearnList();
+  renderLearnProfile();
+  renderInsightPrefs();
   renderVerify();
 }
 function renderLearnList(){
@@ -1948,9 +2012,12 @@ function renderLearnList(){
     ...Object.entries(L.alias).map(([k,v]) => ({ kind:'alias', k, label:`「${k}」→ ${v.ex}` })),
     ...Object.entries(L.numFix).map(([k,v]) => ({ kind:'numFix', k, label:`${k}kg → ${v.to}kg` })),
     ...Object.keys(L.noFix).map(k => ({ kind:'noFix', k, label:`${k.replace(':','の')}kgは補正しない` })),
+    ...heardProfile().map(h => ({ kind:'auto', k:h.key, label:`「${h.raw}」→ ${h.ex}（${h.n}回）` })),
   ];
   el.innerHTML = items.length
-    ? items.map(it => `<div class="learn-row"><span>${esc(it.label)}</span><button data-kind="${it.kind}" data-k="${esc(it.k)}" aria-label="忘れる">×</button></div>`).join('')
+    ? items.map(it => it.kind==='auto'
+        ? `<div class="learn-row auto"><span>${esc(it.label)}</span></div>`
+        : `<div class="learn-row"><span>${esc(it.label)}</span><button data-kind="${it.kind}" data-k="${esc(it.k)}" aria-label="忘れる">×</button></div>`).join('')
     : '<div class="learn-empty">まだありません</div>';
   el.querySelectorAll('button').forEach(b => b.onclick = () => {
     delete learnStore()[b.dataset.kind][b.dataset.k]; saveState(); renderLearnList();
@@ -1984,6 +2051,7 @@ document.getElementById('saveSettings').onclick = async () => {
   cfg.lang=document.getElementById('lang').value;
   cfg.debugMode=document.getElementById('debugMode').value;
   cfg.aliases=document.getElementById('aliases').value;
+  cfg.compareTheme=document.getElementById('compareTheme').value;
   saveCfg();
 
   // 保存は必ず完了させる（検証結果に関わらずブロックしない）
@@ -2140,6 +2208,10 @@ function renderPicker() {
     html += `<div class="pk-head">今日やった種目</div>` +
       usedToday.map(n => pkRow(EX_BY_NAME[n] || {n, m:muscleOf(n)})).join('');
   }
+  const freq = personalStats().top.slice(0,6).filter(n => !usedToday.includes(n));
+  if (!q && pkFilter === 'all' && freq.length) {
+    html += `<div class="pk-head">よくやる種目</div>` + freq.map(n => pkRow(EX_BY_NAME[n] || {n, m:muscleOf(n)})).join('');
+  }
   for (const g of PK_GROUP_ORDER) {
     const items = EX_DEF.filter(e => MUSCLES[e.m] && MUSCLES[e.m].g === g && match(e));
     if (!items.length) continue;
@@ -2195,24 +2267,7 @@ document.getElementById('pkChips').onclick = (ev) => {
 };
 
 // ───── End Session ─────
-document.getElementById('endBtn').onclick = () => {
-  if(!confirm('セッションを終了しますか？\n（データは履歴に保存されます）')) return;
-  stopCapture();
-  const today = todaySets();
-  if(today.length > 0){
-    const vol=today.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0);
-    const sessName = makeSessionName(state.sessionStart||Date.now());
-    state.sessions.unshift({
-      id:'s'+Date.now(), ts:state.sessionStart||Date.now(),
-      vol, name:sessName,
-    });
-    saveState(); // save with updated session (makeSessionName may have mutated existing sessions)
-  }
-  state.sessionStart=null;
-  if(today.length > 0) track('session_end');
-  saveState(); toast('セッション終了','good');
-  render(); switchTab('history');
-};
+// 「筋トレを終了」ボタンと設定側の「セッションを終了」は、どちらも結果画面つきの finishWorkout() を使う。
 
 // ───── Alias ─────
 function applyAlias(name) {
@@ -2306,6 +2361,10 @@ function matchExercise(tm, ctx) {
     }
   }
 
+  // ⓪' 修正しなくても同じ言い方が同じ種目に落ち着いていれば、その人の呼び方
+  const hay1 = foldKana(tm);
+  for (const h of heardProfile()) if (hay1.includes(h.key)) return EX_BY_NAME[h.ex] || { n:h.ex, m:muscleOf(h.ex) };
+
   // ① ユーザーが自分で登録した言い方が最優先
   for (const line of String(cfg.aliases||'').split(/[\n,]/)) {
     const [a,b] = line.split('=').map(x => strip(x));
@@ -2315,8 +2374,29 @@ function matchExercise(tm, ctx) {
     }
   }
 
-  // ② そのままの文字列で当たるならそれが正しい
-  for (const e of EX_INDEX) if (e.key && tm.includes(e.key)) return e.def;
+  // ② そのままの文字列で当たるならそれが正しい。
+  //    同じ長さの名前が複数当たる（「フライ」＝ダンベル／ペックデック／ケーブル…）時は、ふだんよくやる種目を選ぶ
+  {
+    const cands = []; let topLen = 0;
+    for (const e of EX_INDEX) {
+      if (!e.key || !tm.includes(e.key)) continue;
+      if (!cands.length) topLen = e.key.length; else if (e.key.length < topLen) break;
+      if (!cands.includes(e.def)) cands.push(e.def);
+    }
+    if (cands.length) {
+      const cnt = personalStats().count;
+      // 「フライ」のように短い呼び方は、名前にそれを含む種目すべてが候補。
+      // ふだんそのどれかをよくやっている人は、その種目のことを指している可能性が高い
+      const nk = nameKeyOf(tm);
+      if (nk.length >= 2 && nk.length <= 6) {
+        const wide = [];
+        for (const e of EX_INDEX) if (e.fold.includes(nk) && !wide.includes(e.def)) wide.push(e.def);
+        const best = wide.slice().sort((a,b) => (cnt[b.n]||0) - (cnt[a.n]||0))[0];
+        if (best && (cnt[best.n]||0) >= 3 && (cnt[best.n]||0) > Math.max(...cands.map(c => cnt[c.n]||0))) return best;
+      }
+      return cands.slice().sort((a,b) => (cnt[b.n]||0) - (cnt[a.n]||0))[0];
+    }
+  }
 
   // ③ 聞き間違いを想定した照合。
   //    「ペンチプレス」「ベンチプレース」のような濁点・長音のズレをここで拾う。
@@ -2328,12 +2408,12 @@ function matchExercise(tm, ctx) {
     const d = substrDistance(hay, e.fold);
     if (d === 0) return e.def;
     const inCtx = ctx.recent.has(e.def.n);
-    const usual = (personalStats().count[e.def.n]||0) >= 3;   // ふだんやっている種目
+    const habit = Math.min(0.2, 0.04 * Math.log2(1 + (personalStats().count[e.def.n]||0)));   // ふだんやっている種目ほど有利
     // 許容するズレ幅を広げるのは今日やっている種目だけ（広げすぎると別の種目に誤爆する）
     const allow = Math.floor(e.fold.length / 4) + (inCtx ? 1 : 0);
     if (d > allow) continue;
     // 同じズレ幅なら長い語を、さらに今日やっている・ふだんやっている種目を優先する
-    const score = d / e.fold.length - (inCtx ? 0.12 : 0) - (usual ? 0.06 : 0);
+    const score = d / e.fold.length - (inCtx ? 0.12 : 0) - habit;
     if (!best || score < best.score) best = { def:e.def, score };
   }
   return best ? best.def : null;
@@ -2347,7 +2427,97 @@ function learnStore(){
   state.learn.alias  = state.learn.alias  || {};   // 聞こえ方 → 種目
   state.learn.numFix = state.learn.numFix || {};   // 聞こえた重量 → 正しい重量
   state.learn.noFix  = state.learn.noFix  || {};   // 自動補正が外れた組み合わせ（以後は直さない）
+  state.learn.insight = state.learn.insight || { hide:{}, like:{} };   // 結果画面のカードの好み
   return state.learn;
+}
+
+// ───── 話し終わりの待ち時間（その人の「間」に合わせる）─────
+// 待ち時間が長いほど確実だが、遅い。短いほど速いが、言葉の途中で切れて「80キロ」「10回」に割れる。
+// 割れて後でつなげた（＝早すぎた）回数と、割れずに記録できた回数から、人ごとに最適な長さへ寄せていく。
+const TAIL_MIN = 500, TAIL_MAX = 1000, TAIL_START = 650;
+function paceTail(){
+  const p = learnStore().pace;
+  return p && p.tail ? p.tail : TAIL_START;
+}
+function paceUpdate(early){
+  const L = learnStore();
+  const p = L.pace = L.pace || { tail:TAIL_START, early:0, clean:0, total:0 };
+  p.total = (p.total||0) + 1;
+  if (early) {
+    p.early++; p.clean = 0;
+    if (p.tail < TAIL_MAX) { p.tail = Math.min(TAIL_MAX, p.tail + 100); logEvent(`話の途中で切れたため待ち時間を ${p.tail}ms に延長`); }
+  } else if (++p.clean >= 12 && p.tail > TAIL_MIN) {
+    p.tail = Math.max(TAIL_MIN, p.tail - 50); p.clean = 0;
+    logEvent(`切れ目が安定したため待ち時間を ${p.tail}ms に短縮`);
+  }
+  saveState();
+  if (NativeVoice && nativeLive) { try { NativeVoice.updateConfig({ tailMs: p.tail }); } catch(_) {} }
+}
+
+// ───── セット間の休憩（その人のインターバル）─────
+let _rest=null, _restN=-1;
+function restStats(){
+  if (_rest && _restN===state.sets.length) return _rest;
+  const since = Date.now() - 120*86400000;
+  const sets = state.sets.filter(x => x.ts >= since).slice().sort((a,b)=>a.ts-b.ts);
+  const all = [], byEx = {};
+  for (let i=1; i<sets.length; i++) {
+    const a = sets[i-1], b = sets[i];
+    if (new Date(a.ts).toDateString() !== new Date(b.ts).toDateString()) continue;
+    const gap = (b.ts - a.ts) / 1000;
+    if (gap < 15 || gap > 600) continue;            // 15秒未満は同じセットの言い直し、10分超は休憩ではなく中断
+    all.push(gap);
+    if (b.exercise && a.exercise === b.exercise) (byEx[b.exercise] = byEx[b.exercise] || []).push(gap);
+  }
+  _rest = { all, byEx, med: all.length >= 5 ? median(all) : null }; _restN = state.sets.length;
+  return _rest;
+}
+// この種目でふだん取る休憩（秒）。種目ごとに5回分たまるまでは全体の中央値
+function usualRest(ex){
+  const r = restStats(), e = ex && r.byEx[ex];
+  if (e && e.length >= 5) return median(e);
+  return r.med;
+}
+function fmtMS(sec){ sec = Math.max(0, Math.round(sec)); return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`; }
+function updateRestBar(){
+  const el = document.getElementById('restBar'); if (!el) return;
+  const sets = todaySets(), last = sets[sets.length-1];
+  const sec = last ? (Date.now() - last.ts) / 1000 : 0;
+  if (!last || sec > 900 || document.visibilityState !== 'visible') { el.style.display = 'none'; return; }
+  const u = usualRest(state.lastExercise || last.exercise);
+  el.style.display = 'flex';
+  el.classList.toggle('over', !!u && sec > u * 1.25);
+  el.innerHTML = `<span class="rb-k">休憩</span><span class="rb-t">${fmtMS(sec)}</span>`
+    + (u ? `<span class="rb-u">いつもは ${fmtMS(u)}</span>` : '<span class="rb-u">あなたの休憩を学習中</span>');
+}
+setInterval(updateRestBar, 1000);
+
+// ───── 言い方のくせ（自動で覚える）─────
+// 修正されなかった記録から、「この言い方はこの種目」を数える。2回以上同じ言い方で、
+// 同じ種目に落ち着いたものを、その人の呼び方として最優先で当てる（フライ＝ペックデックフライ など）。
+function spokenNameRaw(text){
+  return strip(normalizeNumbers(String(text||''))).replace(NAME_NOISE,'');
+}
+let _heard=null, _heardN=-1;
+function heardProfile(){
+  if (_heard && _heardN===state.sets.length) return _heard;
+  const since = Date.now() - 180*86400000, map = {};
+  for (const x of state.sets) {
+    if (!x.exercise || x.edited || x.ts < since || !x.transcript || x.transcript==='(manual)') continue;
+    const raw = spokenNameRaw(x.transcript), key = foldKana(raw);
+    if (key.length < 3 || key.length > 20 || key === foldKana(strip(x.exercise))) continue;
+    const m = map[key] = map[key] || { raw, by:{}, n:0 };
+    m.by[x.exercise] = (m.by[x.exercise]||0) + 1; m.n++;
+  }
+  const exact = new Set(EX_INDEX.map(e => e.fold));
+  const out = [];
+  for (const [key, m] of Object.entries(map)) {
+    if (m.n < 2 || exact.has(key)) continue;
+    const [ex, n] = Object.entries(m.by).sort((a,b)=>b[1]-a[1])[0];
+    if (n >= 2 && n / m.n >= 0.8) out.push({ key, raw:m.raw, ex, n });
+  }
+  _heard = out.sort((a,b)=>b.key.length-a.key.length); _heardN = state.sets.length;
+  return _heard;
 }
 // 発話から「種目名にあたる部分」だけを取り出す（数字・単位・つなぎ言葉を除く）
 const NAME_NOISE = /\d+(?:\.\d+)?|キロ|きろ|kg|KG|Kg|㎏|レップ|reps?|セット|かける|×|同じで|おなじで|同じ|おなじ|回|かい|発|秒|分|で|を|は|が|です|ます|えーと|えっと|えー|あと/g;
@@ -2650,7 +2820,7 @@ let pttActive=false;   // 「タップして話す」で録音中か
 // ブラウザが直接ストリームを掴むため、AudioContextの状態に左右されない。
 let mediaRec=null, recChunks=[], pttMaxTimer=null, pttStartAt=0, pttTickTimer=null;
 // ハンズフリー（常時録音）用
-let autoOn=false, chunkStartAt=0, chunkPeakOver=0, chunkQuietAt=0, chunkGuardTimer=null;
+let autoOn=false, chunkStartAt=0, chunkPeakOver=0, chunkQuietAt=0, chunkGuardTimer=null, chunkVoicedMs=0;
 let lastAddSig='', lastAddAt=0;   // 隣り合う区間に同じ発話が入った時の重複よけ
 
 // ── 診断ログ ──
@@ -2777,6 +2947,21 @@ function vsEnd(){
   const s = vs; s.end = Date.now(); vsPut(s); vs = null;
   return s;
 }
+// 発話ごとの行方。「話したのに記録されない」の原因を、感想でなく理由で読むため
+function vsUtt(text, outcome, extra){
+  if(!vs) return;
+  (vs.utts = vs.utts||[]).push({ t:Date.now(), x:String(text||'').slice(0,60), o:outcome, e:extra||'' });
+  while(vs.utts.length>80) vs.utts.shift();
+  vsSave();
+}
+// 録音側で捨てた区間（声が小さい・短すぎる・認識が空）
+function vsDrop(reason, extra){
+  if(!vs) return;
+  vs.drops = vs.drops||{}; vs.drops[reason] = (vs.drops[reason]||0)+1;
+  (vs.dropLog = vs.dropLog||[]).push({ t:Date.now(), r:reason, e:extra||'' });
+  while(vs.dropLog.length>40) vs.dropLog.shift();
+  vsSave();
+}
 function vsBump(k, n){ if(!vs) return; vs[k] = (vs[k]||0) + (n==null?1:n); vsSave(); }
 function vsPush(k, v, cap){ if(!vs) return; (vs[k] = vs[k]||[]).push(v); while(vs[k].length>(cap||40)) vs[k].shift(); vsSave(); }
 // アプリ版：録音側（ネイティブ）が持っている中断・再開・通信のやり直しの記録を取り込む
@@ -2799,6 +2984,10 @@ function vsRecover(){
   if(open){ try { localStorage.setItem(VS_KEY, JSON.stringify(all)); } catch(_) {} if(IS_NATIVE) vsPullNative(open); }
 }
 
+// 記録が1件も無くても、発話や捨てた区間があれば原因調査に必要なので載せる
+function vsShown(s){
+  return (s.ids||[]).length || (s.utts||[]).length || (s.dropLog||[]).length || (s.end||Date.now()) - s.start > 60000;
+}
 function vsSummary(s){
   const rows = state.sets.filter(r => r.sid===s.id && r.src==='voice');
   const rec = (s.ids||[]).length;
@@ -2830,7 +3019,7 @@ function vsVerdicts(s, m){
     m.said ? `${Math.round((m.acc||0)*100)}%（${m.ok}/${m.said}）` : '記録なし']);
   v.push(['学習', (s.learned||0)+(s.wfix||0) > 0 ? '○' : '－',
     `自動で直した ${(s.learned||0)+(s.wfix||0)}件（言い方${s.learned||0}・重量${s.wfix||0}）`]);
-  v.push(['速さ', m.med==null ? '－' : mark(m.med<=2.0 && m.p90<=3.5, m.med<=3.0),
+  v.push(['速さ', m.med==null ? '－' : mark(m.med<=1.2 && m.p90<=1.5, m.p90<=2.0),
     m.med==null ? '計測なし' : `ふだん${m.med.toFixed(1)}秒・遅い時${m.p90.toFixed(1)}秒`]);
   v.push(['音楽・連続', mark(m.downSec<=30, m.downSec<=120),
     `止まっていた ${m.downSec}秒（${m.stops}回）`]);
@@ -2842,7 +3031,7 @@ const VS_KIND = { interrupt:'中断', resume:'再開', stall:'音が途切れ→
   queued:'通信できず端末に保存', late:'保存分をあとで記録', fail:'認識できず破棄', route:'イヤホン切替',
   reset:'音声システムのリセット', notify:'止まったことを通知', start:'開始', stop:'停止' };
 function vsText(limit){
-  const all = vsAll().filter(s => (s.ids||[]).length || (s.end||Date.now())-s.start > 60000).reverse().slice(0, limit||5);
+  const all = vsAll().filter(vsShown).reverse().slice(0, limit||5);
   if(!all.length) return 'TalkFit 検証レポート：まだ記録がありません';
   const t = ms => new Date(ms).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',hour12:false});
   const d = ms => { const x=new Date(ms); return `${x.getMonth()+1}/${x.getDate()}`; };
@@ -2852,6 +3041,7 @@ function vsText(limit){
     out.push('', `■ ${d(s.start)} ${t(s.start)}〜${t(s.end||Date.now())}（${m.min}分・${s.platform==='app'?'アプリ版':'Web版'}・build ${s.build}・${s.model||''}）${s.abrupt?' ※途中でアプリが閉じた':''}`);
     for(const [k, mk, txt] of vsVerdicts(s, m)) out.push(`${mk} ${k}：${txt}`);
     if(s.echo) out.push(`語彙ヒントの復唱を破棄：${s.echo}件（声が無い区間の誤認識）`);
+    if(s.switchIgnored) out.push(`声が短い種目名だけの発話を無視：${s.switchIgnored}件（切り替えず）`);
     out.push(`内訳：声で記録${m.rec}・あとで修正${m.edited}・削除${m.deleted}・手で追加${s.manual||0}・記録できず${m.unparsed}・重複スキップ${s.dup||0}・エラー${s.errors||0}`);
     if(m.n.queued || s.late) out.push(`通信：端末に保存${m.n.queued||0}件・あとで記録${s.late||0}件${s.native&&s.native.retryWaiting?`・送信待ち${s.native.retryWaiting}件`:''}`);
     if(i>0) return;                                 // 中身は直近のセッションだけ
@@ -2863,6 +3053,12 @@ function vsText(limit){
       }
     }
     if(m.unparsed) out.push('記録できず：' + s.unparsed.map(x => `「${x}」`).join(' '));
+    const dr = Object.entries(s.drops||{}).map(([k,v]) => `${k}${v}回`);
+    if(dr.length) out.push('録音側で捨てた区間：' + dr.join('・'));
+    if((s.dropLog||[]).length) out.push('  ' + s.dropLog.slice(-6).map(d => `${t(d.t)} ${d.r}（${d.e}）`).join(' / '));
+    const lost = (s.utts||[]).filter(u => !/^(記録|声で訂正|取り消し$|種目を切り替え)/.test(u.o));
+    if(lost.length) out.push('記録に至らなかった発話：', ...lost.slice(-15).map(u => `  ${t(u.t)} 「${u.x}」→ ${u.o}${u.e?'（'+u.e+'）':''}`));
+    if((s.switches||[]).length) out.push('種目の切り替え：' + s.switches.slice(-8).map(w => `${t(w.t)} ${w.from||'-'}→${w.to}（「${w.x}」${w.v!=null?w.v+'ms':''}）`).join(' / '));
     if(s.errLog && s.errLog.length) out.push('エラー：' + s.errLog.slice(-8).join(' / '));
     const ev = (s.native && s.native.events || []).filter(e => e.k!=='start' && e.k!=='stop');
     if(ev.length) out.push('録音側の出来事：', ...ev.slice(-30).map(e => `  ${t(e.t)} ${VS_KIND[e.k]||e.k}${e.bg?'（画面ロック中）':''} ${e.m||''}`));
@@ -2872,7 +3068,7 @@ function vsText(limit){
 function renderVerify(){
   const el = document.getElementById('verifyList');
   if(!el) return;
-  const all = vsAll().filter(s => (s.ids||[]).length || (s.end||Date.now())-s.start > 60000).reverse().slice(0, 6);
+  const all = vsAll().filter(vsShown).reverse().slice(0, 6);
   if(!all.length){ el.innerHTML = '<div class="learn-empty">録音を始めると、ここに結果が出ます</div>'; return; }
   el.innerHTML = all.map(s => {
     const m = vsSummary(s), x = new Date(s.start);
@@ -2949,7 +3145,7 @@ function nativeConfig(){
   return {
     mode: useBackend() ? 'server' : 'direct', apiKey: cfg.apiKey||'', apiBase: API_BASE||'',
     device: DEVICE_ID, model: cfg.model||'gpt-4o-transcribe', language: cfg.lang||'ja',
-    prompt: whisperPrompt(), tailMs: 800, marginDb: 12, sid: vs ? vs.id : '',
+    prompt: whisperPrompt(), tailMs: paceTail(), marginDb: 12, sid: vs ? vs.id : '',
   };
 }
 // 書き起こし1件を順番に処理する。同じものが二度届いても一度しか記録しない
@@ -2959,7 +3155,8 @@ function handleNativeItem(it){
   nativeChain = nativeChain.then(async () => {
     try {
       await processTranscript(it.text, { ts: it.ts, speechEndAt: it.speechEndAt, cutAt: it.cutAt,
-        blobAt: it.cutAt, sendAt: it.sendAt, apiDoneAt: it.apiDoneAt, bg: !!it.bg, late: !!it.late });
+        blobAt: it.cutAt, sendAt: it.sendAt, apiDoneAt: it.apiDoneAt, bg: !!it.bg, late: !!it.late,
+        voicedMs: it.voicedMs != null ? it.voicedMs : undefined });
     } catch(e){ logEvent('処理エラー: '+e.message); }
     try { await NativeVoice.ack({ ids:[it.id] }); } catch(_) {}
     try { await NativeVoice.updateConfig({ prompt: whisperPrompt() }); } catch(_) {}
@@ -3141,6 +3338,8 @@ async function startCapture(){
       if(autoOn && mediaRec){
         const over = vol - noiseFloor;
         if(over > chunkPeakOver) chunkPeakOver = over;
+        // 基準を超えていた長さ。声は続くが、物音や拍子は一瞬で終わる
+        if(over >= cfg.volThr) chunkVoicedMs += (ch.length / ((audioCtx&&audioCtx.sampleRate)||44100)) * 1000;
         const elapsed = (Date.now()-chunkStartAt)/1000;
         const quiet = over < cfg.volThr*0.5;
         if(quiet){ if(!chunkQuietAt) chunkQuietAt = Date.now(); }
@@ -3149,7 +3348,7 @@ async function startCapture(){
         if(elapsed >= CHUNK_MAX_SEC) cutChunk('上限');
         // 話し終わって静かになったら、区間の上限を待たずに送る。
         // 「言ったのに数秒間なにも起きない」の正体はここの待ち時間だった。
-        else if(heard && chunkQuietAt && Date.now()-chunkQuietAt >= SPEECH_TAIL_MS && elapsed >= 1.2){
+        else if(heard && chunkQuietAt && Date.now()-chunkQuietAt >= paceTail() && elapsed >= 1.0){
           cutChunk('発話終了');
         }
         // 声が無かった区間は、短く捨てて次に進む
@@ -3257,7 +3456,7 @@ const CHUNK_MIN_SEC = 6;    // 声が無かった区間を捨てて次に進む�
 const CHUNK_MAX_SEC = 11;   // 静かにならなくても、ここで必ず切る
 // 話し終わってからこれだけ静かなら、区間の上限を待たずに送る。
 // 反応の速さはほぼこの値で決まる。短すぎると息継ぎで切れて語が割れる。
-const SPEECH_TAIL_MS = 900;
+// （初期値と学習は paceTail()：その人の「間」に合わせて 0.5〜1.0 秒の間で調整する）
 // 区切りを短くすると「ベンチ80キロ」「10回」のように1発話が割れることがある。
 // 回数の無い断片はしばらく保留し、次の区間とつなげて読む。
 const PARTIAL_HOLD_MS = 7000;
@@ -3307,6 +3506,7 @@ async function sendAudio(blob, filename, audioSec, meta){
   // 何バイト録れたのかを先に見せる：ここが小さければ録音側、十分なら認識側の問題。
   if(blob.size < 2000){
     logEvent(`送信中止 ${blob.size}バイト（録音できていない）`);
+    vsDrop('録音が小さすぎて送らず', blob.size+'バイト');
     setTranscript(`録音できていません（${blob.size}バイト）`, false);
     return;
   }
@@ -3392,6 +3592,7 @@ async function sendAudio(blob, filename, audioSec, meta){
   // 黙って捨てると「言ったのに反映されない」としか見えない。必ず結果を返す。
   if(!text||text.length<2){
     logEvent('Whisper→（空）音声が無音か短すぎ');
+    vsDrop('認識結果が空', (audioSec||0).toFixed(1)+'秒');
     setTranscript('聞き取れませんでした',false); return;
   }
   meta.apiDoneAt = Date.now();
@@ -3420,17 +3621,18 @@ async function processTranscript(text, meta){
   logEvent('認識→「'+text+'」');
   if (isPromptEcho(text)) {
     logEvent('語彙ヒントの復唱（声なし）のため破棄');
-    vsBump('echo');
+    vsBump('echo'); vsUtt(text, '復唱を破棄');
     return;
   }
 
   // 直前の区間が「ベンチ80キロ」のような回数の無い断片なら、つなげて読む
+  let merged = false;
   if (pendingPartial && Date.now()-pendingPartial.at < PARTIAL_HOLD_MS) {
     const joined = pendingPartial.text + ' ' + text;
     const pj = localParse(joined);
     if (pj && !pj._noise && (pj.reps!=null || pj.seconds!=null)) {
       logEvent('前の区間とつなげて解釈: '+joined);
-      text = joined;
+      text = joined; merged = true; paceUpdate(true);
     }
   }
   pendingPartial = null; clearTimeout(pendingTimer);
@@ -3442,11 +3644,12 @@ async function processTranscript(text, meta){
       && /(キロ|きろ|kg|KG|Kg|㎏)/.test(text) && !/(回|かい|レップ|秒|分)/.test(text)) {
     pendingPartial = { text, at: Date.now() };
     setTranscript(text+' …回数を待っています', false);
+    vsUtt(text, '回数を待って保留');
     pendingTimer = setTimeout(()=>{
       if (pendingPartial && pendingPartial.text===text) {
         pendingPartial = null;
         logEvent('回数が来なかったため記録せず: '+text);
-        vsPush('unparsed', text);
+        vsPush('unparsed', text); vsUtt(text, '回数が来ず破棄');
         setTranscript('「'+text+'」回数が聞き取れませんでした', false);
       }
     }, PARTIAL_HOLD_MS);
@@ -3456,9 +3659,10 @@ async function processTranscript(text, meta){
   let parsed;
   learnHit = false;
   try{ parsed=await parseUtterance(text); }
-  catch(e){ logEvent('解析エラー: '+e.message); toast('解析できませんでした','bad'); return; }
+  catch(e){ logEvent('解析エラー: '+e.message); toast('解析できませんでした','bad'); vsUtt(text, '解析エラー', e.message); return; }
   if(!parsed){
     logEvent('解析→ 記録対象なし');
+    vsUtt(text, /\d/.test(normalizeNumbers(text)) ? '数字はあるが解釈できず' : '数字なし（雑談扱い）');
     // 数字を含む発話は記録するつもりだったはず。無反応で終わらせない。
     if(/\d/.test(text)){ setTranscript(text+' → 記録できず',false); vsPush('unparsed', text); }
     return;
@@ -3469,8 +3673,8 @@ async function processTranscript(text, meta){
   // 「取り消し」「今の消して」＝直前の記録を削除
   if(parsed.undo){
     const last = state.sets[state.sets.length-1];
-    if(!last){ setTranscript('消す記録がありません',false); return; }
-    state.sets.pop(); saveState(); render();
+    if(!last){ setTranscript('消す記録がありません',false); vsUtt(text, '取り消し（対象なし）'); return; }
+    state.sets.pop(); saveState(); render(); vsUtt(text, '取り消し');
     setTranscript('取り消し：'+(last.exercise||'?')+' '+fmtSet(last), true);
     if(navigator.vibrate) navigator.vibrate([20,40,20]);
     return;
@@ -3479,14 +3683,14 @@ async function processTranscript(text, meta){
   // 「違う、インクライン」＝直前の記録を言い直しで上書き
   if(parsed.fix){
     const last = state.sets[state.sets.length-1];
-    if(!last){ setTranscript('直す記録がありません',false); return; }
+    if(!last){ setTranscript('直す記録がありません',false); vsUtt(text, '訂正（対象なし）'); return; }
     const beforeFix = { exercise:last.exercise, weight:last.weight, reps:last.reps };
     if(!last.orig) last.orig = beforeFix;
     if(parsed.exercise!=null) last.exercise = parsed.exercise;
     if(parsed.weight  !=null) last.weight   = parsed.weight;
     if(parsed.reps    !=null) last.reps     = parsed.reps;
     if(parsed.seconds !=null) last.seconds  = parsed.seconds;
-    last.edited = true;
+    last.edited = true; vsUtt(text, '声で訂正');
     learnFromCorrection(last, beforeFix);
     if(last.exercise) state.lastExercise = last.exercise;
     saveState(); render();
@@ -3498,7 +3702,16 @@ async function processTranscript(text, meta){
   // 種目名だけの発話＝次の種目の宣言。記録はせず状態だけ切り替える
   if(parsed.switch_only){
     // 種目の宣言は短い。長い文は雑談や誤認識で、ここで切り替えると以後の記録がずれる
-    if(strip(text).length > 24){ logEvent('長い発話での種目切り替えは無視: '+text); return; }
+    if(strip(text).length > 24){ logEvent('長い発話での種目切り替えは無視: '+text); vsUtt(text, '長い発話の切り替えを無視'); return; }
+    // 種目名だけの発話は、声が無い区間に認識エンジンが語彙ヒントの一語を出した時と区別がつかない。
+    // 声と呼べる長さ（0.4秒）が無ければ、切り替えない。
+    if(meta.voicedMs != null && meta.voicedMs < 400){
+      logEvent(`声が短い（${Math.round(meta.voicedMs)}ms）ため種目の切り替えを無視: ${parsed.exercise}`);
+      vsUtt(text, '声が短く切り替えず', Math.round(meta.voicedMs)+'ms'); vsBump('switchIgnored');
+      return;
+    }
+    vsPush('switches', { t:Date.now(), from:state.lastExercise||'', to:parsed.exercise, x:text.slice(0,30), v:meta.voicedMs!=null?Math.round(meta.voicedMs):null }, 30);
+    vsUtt(text, '種目を切り替え');
     state.lastExercise=parsed.exercise; saveState();
     setTranscript('種目 → '+parsed.exercise, true);
     render();
@@ -3535,7 +3748,7 @@ async function processTranscript(text, meta){
     const sig = [parsed.exercise,parsed.weight,parsed.reps,parsed.seconds].join('/');
     if(sig===lastAddSig && Date.now()-lastAddAt < 9000){
       logEvent('重複のためスキップ: '+sig);
-      vsBump('dup');
+      vsBump('dup'); vsUtt(text, '同じ内容が続いたため重複扱い');
       setTranscript('（同じ内容のためスキップ）', false);
       return;
     }
@@ -3565,7 +3778,8 @@ async function processTranscript(text, meta){
     // 保存と描画を分けて記録する。今回のバグは「保存はできていたが描画で落ちていた」で、
     // ログが解析までしかなかったせいで原因の切り分けに何往復もかかった。
     logEvent(`記録 +${n} → 本日${todaySets().length}セット`);
-    track('set_voice');
+    track('set_voice'); vsUtt(text, '記録');
+    if(!merged) paceUpdate(false);          // 割れずに一度で記録できた＝待ち時間は足りている
     setTranscript(`${row.exercise||'?'} · ${fmtSet(row)}${n>1?' ×'+n+'セット':''}`
       + (parsed.weight_fixed_from!=null ? `（${parsed.weight_fixed_from}→${parsed.weight}kgに補正）` : ''), true);
     logLatency(meta);
@@ -3752,6 +3966,8 @@ function startChunk(){
       // 送ってもWhisperが幻聴（無音に対する定型句）を返すだけなので捨てる。
       if(analyser && peakOver < cfg.volThr){
         dbg('無音区間をスキップ');
+        // 基準に届かなかった区間のうち、ほぼ届いていたもの（声が小さかった可能性）は理由つきで残す
+        if(peakOver >= cfg.volThr*0.6) vsDrop('声が小さく無音扱い', `山${peakOver.toFixed(1)}/基準${cfg.volThr}`);
         return;
       }
       sendAudio(blob, mimeToFilename(type), recSec, Object.assign({ blobAt: Date.now() }, rec._meta||{}));
@@ -3759,6 +3975,7 @@ function startChunk(){
     rec.start();
     chunkStartAt = Date.now();
     chunkPeakOver = 0;
+    chunkVoicedMs = 0;
     chunkQuietAt = 0;
     // AudioContext が無い／止まっている端末では onaudioprocess が来ないので、
     // 音量で切れない。タイマー側にも必ず退路を用意する。
@@ -3776,7 +3993,7 @@ function cutChunk(reason){
   if(!autoOn || !mediaRec) return;
   clearTimeout(chunkGuardTimer);
   const rec = mediaRec; mediaRec = null;
-  rec._meta = { speechEndAt: chunkQuietAt || Date.now(), cutAt: Date.now() };
+  rec._meta = { speechEndAt: chunkQuietAt || Date.now(), cutAt: Date.now(), voicedMs: chunkVoicedMs, peakOver: chunkPeakOver };
   const sec = ((Date.now()-chunkStartAt)/1000).toFixed(1);
   dbg(`区切り(${reason}) ${sec}s`);
   // 送っている最中は必ずそう見せる。無反応の数秒が一番不安になる。
@@ -4080,6 +4297,298 @@ document.getElementById('shareBtn').onclick = async () => {
   } catch(e){ if(e && e.name!=='AbortError') toast('シェアできませんでした','bad'); }
 };
 
+// ───── 筋トレ終了：結果画面 ─────
+// 数字を並べるだけでなく、「その重さは何か」「体で何をしたか」を一目で伝える。
+// 何を見せるかは人によって違うので、カードごとの ♡（上に出す）/ ✕（出さない）を学習し、
+// 例えのジャンルも選べる。重さは概数なので「約」をつけ、出典のある物理量は式を明示する。
+const COMPARE_THEMES = {
+  vehicle:  { label:'乗り物', items:[['スーパーカブ',100,'台'],['F1マシン',800,'台'],['軽自動車',900,'台'],['プリウス',1400,'台'],
+                                   ['路線バス',10000,'台'],['ボーイング737（空虚重量）',41000,'機'],['ジャンボ機747（空虚重量）',180000,'機']] },
+  animal:   { label:'動物',   items:[['ゴールデンレトリバー',30,'頭'],['ホッキョクグマ',450,'頭'],['ホルスタイン',650,'頭'],['カバ',1500,'頭'],
+                                   ['アフリカゾウ',5000,'頭'],['ティラノサウルス（推定）',8000,'頭'],['シロナガスクジラ',150000,'頭']] },
+  landmark: { label:'建造物', items:[['グランドピアノ',300,'台'],['自由の女神',200000,'体'],['東京タワーの鉄骨',4000000,'基'],
+                                   ['エッフェル塔',10100000,'基'],['東京スカイツリーの鉄骨',36000000,'基']] },
+  science:  { label:'身近なもの', items:[['牛乳1Lパック',1,'本'],['成人男性',70,'人'],['1㎥の水',1000,'杯'],['25mプールの水',400000,'杯']] },
+};
+function pickCompare(vol, theme){
+  const keys = Object.keys(COMPARE_THEMES);
+  const k = theme && COMPARE_THEMES[theme] ? theme : keys[(Math.floor(Date.now()/86400000) + state.sessions.length) % keys.length];
+  const items = COMPARE_THEMES[k].items;
+  let idx = 0; for (let i=0; i<items.length; i++) if (items[i][1] <= vol) idx = i;
+  const [name, kg, c] = items[idx], next = items[idx+1];
+  return { theme:k, name, kg, c, ratio: vol/kg,
+           next: next ? { name:next[0], c:next[2], need: Math.max(1, Math.ceil(next[1]-vol)) } : null };
+}
+function fmtRatio(r){ return r >= 10 ? Math.round(r).toLocaleString() : String(Math.round(r*10)/10); }
+const BAR_PATH_M = { chest:0.45, back:0.5, shoulder:0.5, arm:0.4, leg:0.55, core:0.3 };   // 1回あたりのバーの移動距離（概算）
+const LANDMARKS = [['東京タワー',333],['東京スカイツリー',634],['富士山',3776],['エベレスト',8849]];
+function latestBodyKg(){ const w = (state.weights||[]).slice(-1)[0]; return w && w.value > 20 ? w.value : null; }
+function gapsOf(sorted){
+  const out = [];
+  for (let i=1; i<sorted.length; i++) {
+    const a = sorted[i-1], b = sorted[i];
+    if (new Date(a.ts).toDateString() !== new Date(b.ts).toDateString()) continue;
+    const gap = (b.ts - a.ts) / 1000;
+    if (gap >= 15 && gap <= 600) out.push({ gap, ex: (a.exercise && a.exercise===b.exercise) ? b.exercise : null });
+  }
+  return out;
+}
+const INSIGHT_KINDS = { work:'体の仕事量', e1rm:'推定1RM', focus:'今日の主役と週間セット数', rest:'休憩と密度', total:'通算と次の節目', habit:'継続' };
+
+function buildReport(){
+  const today0 = new Date(); today0.setHours(0,0,0,0); const t0 = today0.getTime();
+  const sets = todaySets().slice().sort((a,b)=>a.ts-b.ts);
+  const vol = sets.reduce((a,x)=>a+(x.weight||0)*(x.reps||0),0);
+  const reps = sets.reduce((a,x)=>a+(x.reps||0),0);
+  const exs = [...new Set(sets.filter(x=>x.exercise).map(x=>x.exercise))];
+  const first = sets[0], last = sets[sets.length-1];
+  const durMin = first && last ? Math.max(0, (last.ts - first.ts)/60000) : 0;
+  const R = { sets:sets.length, reps, vol, exs, durMin, dateStr:'', cards:[] };
+  const d = new Date(); R.dateStr = `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}（${DAY[d.getDay()]}）`;
+  R.cmp = pickCompare(vol, cfg.compareTheme);
+
+  // 見出し：過去との比較から
+  const past = state.sessions.filter(x => x.ts < t0 && x.vol > 0).slice(0, 5);
+  const avg = past.length ? past.reduce((a,x)=>a+x.vol,0) / past.length : 0;
+  const prs = [];
+  const e1 = {};
+  for (const x of sets) {
+    if (!x.exercise || !(x.weight > 0) || !(x.reps >= 1 && x.reps <= 12)) continue;
+    const v = x.weight * (1 + x.reps/30);
+    if (!e1[x.exercise] || v > e1[x.exercise].v) e1[x.exercise] = { v, w:x.weight, r:x.reps };
+  }
+  for (const [ex, cur] of Object.entries(e1)) {
+    let prev = 0;
+    for (const p of state.sets) if (p.exercise===ex && p.ts < t0 && p.weight > 0 && p.reps >= 1 && p.reps <= 12) prev = Math.max(prev, p.weight*(1+p.reps/30));
+    cur.prev = prev; cur.up = prev > 0 && cur.v > prev;
+    if (cur.up) prs.push(ex);
+  }
+  R.e1 = e1; R.prs = prs;
+  if (prs.length) { R.head = '自己ベスト更新。'; R.sub = `${prs.slice(0,2).join('・')}で、昨日までの自分を超えました。`; }
+  else if (avg) {
+    const pct = Math.round(vol/avg*100);
+    R.head = pct >= 100 ? `いつもの${pct}%。積み上げた日。` : `いつもの${pct}%。それでも、来た。`;
+    R.sub = pct >= 100 ? '筋肉は複利で増えます。今日は元本が増えました。' : '継続が最大の複利です。休まず積むことが、次の伸びをつくります。';
+  } else { R.head = '最初の1回。ここが元本。'; R.sub = '今日の記録が、これから先の比較の基準になります。'; }
+
+  // 体の仕事量：W = m·g·h（重量種目のみ。バーの移動距離は部位ごとの概算）
+  let J = 0;
+  for (const x of sets) {
+    if (!(x.weight > 0) || !(x.reps > 0)) continue;
+    const g = detectMuscle(x.exercise);
+    J += x.weight * 9.80665 * (BAR_PATH_M[g] || 0.45) * x.reps;
+  }
+  R.workJ = J;
+  const body = latestBodyKg() || 70;
+  if (J > 0) {
+    const h = J / (body * 9.80665);
+    const lm = LANDMARKS.find(l => h < l[1]) || LANDMARKS[LANDMARKS.length-1];
+    const pct = Math.round(h / lm[1] * 100);
+    const phone = J / 47000;           // iPhone のバッテリー約13Wh ≒ 47kJ
+    R.cards.push({ id:'work', label:'WORK DONE',
+      big: `${Math.round(J/1000)} kJ — ${body}kgの体を ${Math.round(h)}m 持ち上げる仕事`,
+      txt: `${lm[0]}（${lm[1].toLocaleString()}m）の高さの ${pct}% にあたります。電力に直すと iPhone 約${(Math.round(phone*10)/10)}回分の充電量です。`,
+      foot: `W = 質量 × 重力加速度 × 距離（バーの移動距離は部位ごとの概算）。人の筋肉の効率は約20〜25%なので、実際の消費エネルギーはこの4〜5倍${latestBodyKg() ? '' : '。体重は未入力のため70kgで計算'}。` });
+  }
+
+  // 推定1RM（Epley式）
+  const e1rows = Object.entries(e1).sort((a,b)=>b[1].v-a[1].v).slice(0,4);
+  if (e1rows.length) {
+    R.cards.push({ id:'e1rm', label:'ESTIMATED 1RM',
+      big: prs.length ? `${prs[0]} 推定1RM ${Math.round(e1[prs[0]].v*10)/10}kg（自己ベスト）` : `推定1RM 最高は ${e1rows[0][0]} ${Math.round(e1rows[0][1].v*10)/10}kg`,
+      rows: e1rows.map(([ex,c]) => [ex, `${Math.round(c.v*10)/10}kg` + (c.prev ? `  <span class="${c.up?'up':''}">${c.v>=c.prev?'+':''}${Math.round((c.v-c.prev)*10)/10}</span>` : '  NEW')]),
+      foot: '1RM＝1回だけ挙げられる最大重量。Epley式 1RM = 重量×(1+回数/30)。12回以内のセットから推定し、前回までの最高値との差を示します。' });
+  }
+
+  // 今日の主役と週間セット数
+  const byG = {}; const wk = {};
+  const wk0 = Date.now() - 7*86400000;
+  for (const x of state.sets) {
+    if (x.ts < wk0 || !x.exercise) continue;
+    const g = detectMuscle(x.exercise); if (!g) continue;
+    wk[g] = (wk[g]||0) + 1;
+    if (x.ts >= t0) byG[g] = (byG[g]||0) + 1;
+  }
+  const gs = Object.entries(byG).sort((a,b)=>b[1]-a[1]);
+  if (gs.length) {
+    const tot = gs.reduce((a,[,n])=>a+n,0), [g0, n0] = gs[0];
+    R.cards.push({ id:'focus', label:'FOCUS',
+      big: `今日の主役は「${GROUPS[g0].label}」（全セットの ${Math.round(n0/tot*100)}%）`,
+      rows: gs.slice(0,4).map(([g]) => [GROUPS[g].label, `直近7日 ${wk[g]}セット  <span class="${wk[g]>=10?'up':''}">${wk[g]>=10?'目安に到達':'あと'+(10-wk[g])+'セット'}</span>`]),
+      foot: '研究のまとめ（メタ分析）では、1部位あたり週10セット前後を超えると筋肥大の効果が大きくなる傾向があります。個人差があるため目安です。' });
+  }
+
+  // 休憩と密度
+  const todayGaps = gapsOf(sets).map(g=>g.gap);
+  const histGaps = gapsOf(state.sets.filter(x=>x.ts < t0 && x.ts >= t0 - 120*86400000).sort((a,b)=>a.ts-b.ts)).map(g=>g.gap);
+  if (todayGaps.length >= 3) {
+    const m = median(todayGaps), hm = histGaps.length >= 5 ? median(histGaps) : null;
+    const dens = durMin >= 5 ? Math.round(vol/durMin) : null;
+    R.cards.push({ id:'rest', label:'REST & DENSITY',
+      big: `セット間隔の中央値 ${fmtMS(m)}` + (hm ? `（いつもは ${fmtMS(hm)}）` : ''),
+      txt: (hm ? (Math.abs(m-hm) < 10 ? 'いつも通りのペースでした。' : m < hm ? `いつもより ${Math.round(hm-m)}秒 短い、テンポの良い日でした。` : `いつもより ${Math.round(m-hm)}秒 長く、一本ずつ丁寧に追い込んだ日でした。`) : 'この記録があなたの基準になります。')
+        + (dens ? ` トレーニング密度は ${dens.toLocaleString()} kg/分（時間あたりの生産性）。` : ''),
+      foot: 'セット間隔＝次のセットを言った時刻の差（セットの実施時間を含む）。15秒〜10分のものだけを集計しています。' });
+  }
+
+  // 通算と節目
+  const allVol = state.sets.reduce((a,x)=>a+(x.weight||0)*(x.reps||0),0);
+  const MILE = [1000,5000,10000,25000,50000,100000,250000,500000,1000000,5000000];
+  const nextM = MILE.find(m => m > allVol);
+  const cmpAll = pickCompare(allVol, cfg.compareTheme || R.cmp.theme);
+  R.cards.push({ id:'total', label:'LIFETIME',
+    big: `通算 ${Math.round(allVol).toLocaleString()} kg — ${cmpAll.name} ${fmtRatio(cmpAll.ratio)}${cmpAll.c}分`,
+    txt: nextM ? `次の節目 ${nextM.toLocaleString()}kg まで、あと ${Math.round(nextM-allVol).toLocaleString()}kg（今日のペースなら約${Math.max(1, Math.ceil((nextM-allVol)/Math.max(vol,1)))}回）。` : '' });
+
+  // 継続
+  const days = new Set(state.sets.filter(x=>x.ts >= Date.now()-28*86400000).map(x=>new Date(x.ts).toDateString()));
+  if (days.size >= 2) {
+    R.cards.push({ id:'habit', label:'CONSISTENCY',
+      big: `直近28日で ${days.size}日トレーニング（週${(Math.round(days.size/4*10)/10)}回）`,
+      txt: days.size >= 12 ? '週3回ペース。習慣化の領域です。' : days.size >= 8 ? '週2回ペース。ここに週1回足すと伸びが変わります。' : '回数より、途切れさせないことが大切です。' });
+  }
+  return R;
+}
+
+function rankedCards(R){
+  const ins = learnStore().insight;
+  return R.cards.filter(c => !ins.hide[c.id])
+    .map((c,i) => ({ c, s:(ins.like[c.id]||0)*10 - i }))
+    .sort((a,b)=>b.s-a.s).map(x=>x.c);
+}
+function cardHTML(c, i){
+  const ins = learnStore().insight;
+  const rows = c.rows ? `<div class="fin-rows">${c.rows.map(r=>`<div><span>${esc(r[0])}</span><b>${r[1]}</b></div>`).join('')}</div>` : '';
+  return `<div class="fin-card" data-id="${c.id}" style="animation-delay:${0.15*i+0.5}s">
+    <div class="ctl"><button class="lk${ins.like[c.id]?' on':''}" data-a="like" aria-label="こういう情報が好き">${ins.like[c.id]?'♥':'♡'}</button><button data-a="hide" aria-label="この情報は出さない">✕</button></div>
+    <div class="lab">${c.label}</div><div class="big">${esc(c.big)}</div>${c.txt?`<div class="txt">${esc(c.txt)}</div>`:''}${rows}${c.foot?`<div class="foot">${esc(c.foot)}</div>`:''}</div>`;
+}
+let lastReport = null;
+function showFinish(R){
+  lastReport = R;
+  const el = document.getElementById('finish'), inner = document.getElementById('finInner');
+  const cm = R.cmp;
+  inner.innerHTML = `
+    <div class="fin-eyebrow">WORKOUT COMPLETE</div><div class="fin-date">${R.dateStr}</div>
+    <div class="fin-head">${esc(R.head)}</div><div class="fin-sub">${esc(R.sub)}</div>
+    <div class="fin-hero"><div class="lab">今日の総挙上量</div><div class="fin-vol"><span id="finVol" data-v="${Math.round(R.vol)}">0</span><small>kg</small></div>
+      <div class="fin-eq">${R.vol > 0 ? `${esc(cm.name)} <em>${fmtRatio(cm.ratio)}${cm.c}分</em>` : '重量の記録はありませんでした'}</div>
+      ${cm.next && R.vol > 0 ? `<div class="fin-next">あと ${cm.next.need.toLocaleString()}kg で ${esc(cm.next.name)} 1${cm.next.c}分</div>` : ''}</div>
+    <div class="fin-tiles"><div class="fin-tile"><div class="v">${R.sets}</div><div class="k">セット</div></div>
+      <div class="fin-tile"><div class="v">${R.reps}</div><div class="k">総レップ</div></div>
+      <div class="fin-tile"><div class="v">${R.durMin >= 1 ? fmtMS(R.durMin*60).replace(/^(\d+):(\d+)$/, '$1分') : '—'}</div><div class="k">所要時間</div></div></div>
+    <div id="finCards">${rankedCards(R).map(cardHTML).join('')}</div>
+    <div class="fin-actions"><button class="fin-share" id="finShare">この結果をシェア</button><button class="fin-close" id="finClose">閉じる</button></div>`;
+  el.style.display = 'block';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('vis')));
+  el.scrollTop = 0;
+  // 総挙上量のカウントアップ
+  const num = document.getElementById('finVol'), target = parseInt(num.dataset.v,10), t0 = performance.now();
+  (function tick(t){ const p = Math.min(1, (t-t0)/1100), e = 1-Math.pow(1-p,3); num.textContent = Math.round(target*e).toLocaleString(); if(p<1) requestAnimationFrame(tick); })(t0);
+  document.getElementById('finClose').onclick = closeFinish;
+  document.getElementById('finShare').onclick = shareFinish;
+  document.getElementById('finCards').onclick = ev => {
+    const b = ev.target.closest('button[data-a]'); if (!b) return;
+    const id = b.closest('.fin-card').dataset.id, ins = learnStore().insight;
+    if (b.dataset.a === 'like') ins.like[id] = ins.like[id] ? 0 : 1;
+    else { ins.hide[id] = true; ins.like[id] = 0; }
+    saveState();
+    document.getElementById('finCards').innerHTML = rankedCards(lastReport).map((c,i)=>cardHTML(c,i)).join('');
+    document.querySelectorAll('#finCards .fin-card').forEach(x => { x.style.animation='none'; x.style.opacity=1; x.style.transform='none'; });
+    if (b.dataset.a === 'hide') toast('この情報は出さないようにしました（設定で戻せます）','good');
+  };
+  track('finish_view');
+}
+function closeFinish(){
+  const el = document.getElementById('finish');
+  el.classList.remove('vis'); setTimeout(()=>{ el.style.display='none'; }, 400);
+}
+function finishWorkout(){
+  const today = todaySets();
+  if (!today.length) { toast('今日の記録がありません','bad'); return; }
+  stopCapture();
+  const R = buildReport();                    // 過去のセッションとの比較は、今日を足す前に計算する
+  const vol = today.reduce((a,x)=>a+(x.weight||0)*(x.reps||0),0);
+  const sessName = makeSessionName(state.sessionStart||Date.now());
+  state.sessions.unshift({ id:'s'+Date.now(), ts:state.sessionStart||Date.now(), vol, name:sessName });
+  state.sessionStart = null;
+  saveState(); track('session_end');
+  render(); showFinish(R);
+}
+document.getElementById('finishBtn').onclick = finishWorkout;
+document.getElementById('endBtn').onclick = finishWorkout;
+
+function wrapJa(g, text, x, y, maxW, lh, maxLines){
+  let line = '', n = 0;
+  for (const ch of String(text)) {
+    if (g.measureText(line + ch).width > maxW) { g.fillText(line, x, y); y += lh; line = ch; if (++n >= (maxLines||9)) return y; }
+    else line += ch;
+  }
+  if (line) { g.fillText(line, x, y); y += lh; }
+  return y;
+}
+async function buildFinishImage(R){
+  const W=1080, H=1350, c=document.createElement('canvas'); c.width=W; c.height=H;
+  const g=c.getContext('2d');
+  const bg=g.createLinearGradient(0,0,W,H); bg.addColorStop(0,'#0C0C0E'); bg.addColorStop(1,'#141a2e'); g.fillStyle=bg; g.fillRect(0,0,W,H);
+  const glow=g.createRadialGradient(W*0.85,0,10,W*0.85,0,900); glow.addColorStop(0,'rgba(79,127,255,0.45)'); glow.addColorStop(1,'rgba(79,127,255,0)'); g.fillStyle=glow; g.fillRect(0,0,W,H);
+  const glow2=g.createRadialGradient(0,H*0.35,10,0,H*0.35,700); glow2.addColorStop(0,'rgba(123,92,255,0.28)'); glow2.addColorStop(1,'rgba(123,92,255,0)'); g.fillStyle=glow2; g.fillRect(0,0,W,H);
+  const sans='-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN",system-ui,sans-serif';
+  const mono='"JetBrains Mono",ui-monospace,Menlo,monospace';
+  g.fillStyle='#4F7FFF'; g.font='500 30px '+mono; g.fillText('W O R K O U T   C O M P L E T E',90,120);
+  g.fillStyle='rgba(255,255,255,0.55)'; g.font='400 32px '+sans; g.fillText(R.dateStr,90,170);
+  g.fillStyle='#fff'; g.font='700 64px '+sans; let y=wrapJa(g,R.head,90,290,W-180,84,2);
+  g.fillStyle='rgba(255,255,255,0.6)'; g.font='400 34px '+sans; y=wrapJa(g,R.sub,90,y+6,W-180,50,2);
+  g.fillStyle='rgba(255,255,255,0.6)'; g.font='500 32px '+sans; g.fillText('今日の総挙上量',90,y+70);
+  g.fillStyle='#fff'; g.font='600 190px '+mono; const vs=Math.round(R.vol).toLocaleString(); g.fillText(vs,84,y+250);
+  const vw=g.measureText(vs).width; g.fillStyle='rgba(255,255,255,0.6)'; g.font='500 60px '+mono; g.fillText('kg',104+vw,y+250);
+  const cm=R.cmp;
+  g.fillStyle='#fff'; g.font='600 46px '+sans; const lead=cm.name+'  ', lw=g.measureText(lead).width; g.fillText(lead,90,y+340);
+  g.fillStyle='#FFD60A'; g.fillText(`${fmtRatio(cm.ratio)}${cm.c}分`,90+lw,y+340);
+  // 3つの数字
+  const tiles=[[R.sets,'セット'],[R.reps,'総レップ'],[R.durMin>=1?Math.round(R.durMin)+'分':'—','所要時間']];
+  tiles.forEach(([v,k],i)=>{ const x=90+i*300; g.fillStyle='rgba(255,255,255,0.07)'; g.beginPath(); g.roundRect(x,y+400,270,130,18); g.fill();
+    g.fillStyle='#fff'; g.font='600 52px '+mono; g.fillText(String(v),x+24,y+468); g.fillStyle='rgba(255,255,255,0.55)'; g.font='400 26px '+sans; g.fillText(k,x+24,y+510); });
+  // 知的好奇心を刺激する2行（仕事量・推定1RM）
+  let yy=y+610; g.font='500 36px '+sans;
+  const lines=[];
+  const w=R.cards.find(x=>x.id==='work'); if(w) lines.push(w.big);
+  const e=R.cards.find(x=>x.id==='e1rm'); if(e) lines.push(e.big);
+  for(const t of lines.slice(0,2)){ g.fillStyle='#8FB0FF'; g.fillText('▍',90,yy); g.fillStyle='rgba(255,255,255,0.88)'; yy=wrapJa(g,t,130,yy,W-220,50,2)+14; }
+  g.fillStyle='rgba(255,255,255,0.9)'; g.font='600 38px '+sans; g.fillText('🎙 声だけで記録しました',90,H-130);
+  g.fillStyle='rgba(255,255,255,0.5)'; g.font='400 30px '+sans; g.fillText('スマホを触らない筋トレ記録 — TalkFit'+(SHARE_HOST?'  '+SHARE_HOST:''),90,H-80);
+  return await new Promise(r=>c.toBlob(r,'image/png'));
+}
+async function shareFinish(){
+  try {
+    const R = lastReport; if (!R) return;
+    const blob = await buildFinishImage(R);
+    const file = new File([blob], 'talkfit-result.png', { type:'image/png' });
+    const text = `今日の総挙上量 ${Math.round(R.vol).toLocaleString()}kg（${R.cmp.name} ${fmtRatio(R.cmp.ratio)}${R.cmp.c}分）。声だけで記録。 #TalkFit #筋トレ記録`;
+    track('share_card');
+    if (navigator.canShare && navigator.canShare({ files:[file] })) await navigator.share({ files:[file], text });
+    else { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='talkfit-result.png'; a.click(); toast('画像を保存しました','good'); }
+  } catch(e){ if (e && e.name!=='AbortError') toast('シェアできませんでした','bad'); }
+}
+
+// 設定：あなたの傾向／結果画面の好み
+function renderLearnProfile(){
+  const el = document.getElementById('learnProfile'); if (!el) return;
+  const p = learnStore().pace, r = restStats(), top = personalStats().top.slice(0,5);
+  const lines = [];
+  lines.push(`話し終わりの待ち時間：<b>${paceTail()}ms</b>` + (p && p.total ? `（${p.early}回途中で切れたため調整・${p.total}回の発話から学習）` : '（初期値・使うほど自分の間に合います）'));
+  lines.push(`セット間の休憩：` + (r.med ? `<b>${fmtMS(r.med)}</b>（中央値・${r.all.length}回分）` : '記録がたまると表示されます'));
+  lines.push(`よくやる種目：` + (top.length ? `<b>${top.map(esc).join(' / ')}</b>` : 'まだありません'));
+  el.innerHTML = lines.map(l=>`<div>${l}</div>`).join('');
+}
+function renderInsightPrefs(){
+  const el = document.getElementById('insightPrefs'); if (!el) return;
+  const ins = learnStore().insight;
+  el.innerHTML = Object.entries(INSIGHT_KINDS).map(([id,label]) =>
+    `<label class="learn-row" style="cursor:pointer"><span>${esc(label)}${ins.like[id]?' ♥':''}</span><input type="checkbox" data-id="${id}" ${ins.hide[id]?'':'checked'}></label>`).join('');
+  el.querySelectorAll('input').forEach(i => i.onchange = () => { if (i.checked) delete ins.hide[i.dataset.id]; else ins.hide[i.dataset.id] = true; saveState(); });
+}
+
 // ── ホーム画面への追加の案内（iOS Safari のみ）──
 (function(){
   const ua = navigator.userAgent || '';
@@ -4112,6 +4621,8 @@ refreshPlan().then(handleCheckoutReturn);
 vsRecover();
 if(IS_NATIVE) drainNative();
 </script>
+<!-- 筋トレ終了後の結果画面 -->
+<div class="finish" id="finish" style="display:none"><div class="fin-inner" id="finInner"></div></div>
 <!-- Onboarding Overlay (shown on first launch only) -->
 <div class="onboard-overlay" id="onboardOverlay" style="display:none;">
 

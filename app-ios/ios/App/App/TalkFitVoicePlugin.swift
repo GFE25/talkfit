@@ -519,6 +519,7 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         let meta: [String: Double] = [
             "speechEndAt": ms(now.addingTimeInterval(-silentMs / 1000)),
             "cutAt": ms(now),
+            "voicedMs": voicedSec * 1000,    // 声の長さ。種目名だけの発話が本物の声かの判断に使う
         ]
         bump("segments")
         emit("state", ["state": "recognizing"])
