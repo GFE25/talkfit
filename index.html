@@ -10,7 +10,7 @@
 <meta name="description" content="筋トレ中に声でつぶやくだけで、種目・重量・回数を自動で記録。スマホを触らない筋トレ記録アプリ。"/>
 <meta name="apple-mobile-web-app-title" content="TalkFit"/>
 <link rel="manifest" href="manifest.webmanifest"/>
-<script src="config.js?v=27"></script>
+<script src="config.js?v=28"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
 <!-- iOS Safari は index.html を平気で数時間キャッシュする。
@@ -1094,7 +1094,7 @@ details.dev summary{font-size:13px;color:var(--fg3);cursor:pointer;margin:6px 0 
 
 <script>
 // ───── Constants ─────
-const BUILD = 27; // 実機が動かしているコードの世代を特定するための番号
+const BUILD = 28; // 実機が動かしているコードの世代を特定するための番号
 // ヘッダに常時表示する。「直したはずなのに直らない」の大半は古いキャッシュ。
 try { document.getElementById('buildTag').textContent = 'b' + BUILD; } catch(e) {}
 // ───── Backend ─────
@@ -2398,7 +2398,10 @@ function learnFromCorrection(row, before){
   if (row.exercise && before.exercise !== row.exercise) {
     const key = nameKeyOf(row.transcript);
     const exFold = foldKana(strip(row.exercise));
-    if (key.length>=2 && key.length<=24 && !exFold.includes(key)) {
+    const beforeFold = before.exercise ? foldKana(strip(before.exercise)) : '';
+    // 言った名前がそのまま別の種目の正式名なら、聞き間違いではなく本人が種目を変えただけ（覚えない）。
+    // 「フライ」→ペックデックフライ のように、短い呼び方が別の種目に当たってしまう場合は覚える。
+    if (key.length>=2 && key.length<=24 && key!==exFold && key!==beforeFold) {
       const cur = L.alias[key];
       L.alias[key] = { ex:row.exercise, n:(cur && cur.ex===row.exercise ? cur.n : 0) + 1, at:Date.now() };
       learned.push(`「${row.transcript.replace(/\d.*$/,'').trim() || key}」→ ${row.exercise}`);
@@ -2848,6 +2851,7 @@ function vsText(limit){
     const m = vsSummary(s);
     out.push('', `■ ${d(s.start)} ${t(s.start)}〜${t(s.end||Date.now())}（${m.min}分・${s.platform==='app'?'アプリ版':'Web版'}・build ${s.build}・${s.model||''}）${s.abrupt?' ※途中でアプリが閉じた':''}`);
     for(const [k, mk, txt] of vsVerdicts(s, m)) out.push(`${mk} ${k}：${txt}`);
+    if(s.echo) out.push(`語彙ヒントの復唱を破棄：${s.echo}件（声が無い区間の誤認識）`);
     out.push(`内訳：声で記録${m.rec}・あとで修正${m.edited}・削除${m.deleted}・手で追加${s.manual||0}・記録できず${m.unparsed}・重複スキップ${s.dup||0}・エラー${s.errors||0}`);
     if(m.n.queued || s.late) out.push(`通信：端末に保存${m.n.queued||0}件・あとで記録${s.late||0}件${s.native&&s.native.retryWaiting?`・送信待ち${s.native.retryWaiting}件`:''}`);
     if(i>0) return;                                 // 中身は直近のセッションだけ
@@ -3395,9 +3399,30 @@ async function sendAudio(blob, filename, audioSec, meta){
 }
 
 // 書き起こした文字を解釈して記録する（Webの録音・ネイティブ録音の共通入口）
+// 声が無い区間で、認識エンジンが「語彙ヒント」そのものを書き起こしてしまうことがある。
+// これを種目の宣言と読むと、いまの種目が勝手に別の種目に切り替わり、以後の記録が全部ずれる
+// （2026-11-02 の実機検証で、誤記録10件のうち7件の原因だった）。
+function isPromptEcho(text){
+  const t = String(text||'');
+  if (/筋トレの記録/.test(t)) return true;
+  if (/\d|[一二三四五六七八九十百]/.test(normalizeNumbers(t))) return false;   // 数字があれば発話の可能性が高い
+  const f = foldKana(strip(t));
+  let hit = 0;
+  for (const term of new Set(whisperPrompt().replace(/^筋トレの記録。/,'').replace(/。$/,'').split('、'))) {
+    const k = foldKana(strip(term));
+    if (k.length >= 3 && f.includes(k)) hit++;
+  }
+  return hit >= 3;
+}
+
 async function processTranscript(text, meta){
   meta = meta || {};
   logEvent('認識→「'+text+'」');
+  if (isPromptEcho(text)) {
+    logEvent('語彙ヒントの復唱（声なし）のため破棄');
+    vsBump('echo');
+    return;
+  }
 
   // 直前の区間が「ベンチ80キロ」のような回数の無い断片なら、つなげて読む
   if (pendingPartial && Date.now()-pendingPartial.at < PARTIAL_HOLD_MS) {
@@ -3472,6 +3497,8 @@ async function processTranscript(text, meta){
 
   // 種目名だけの発話＝次の種目の宣言。記録はせず状態だけ切り替える
   if(parsed.switch_only){
+    // 種目の宣言は短い。長い文は雑談や誤認識で、ここで切り替えると以後の記録がずれる
+    if(strip(text).length > 24){ logEvent('長い発話での種目切り替えは無視: '+text); return; }
     state.lastExercise=parsed.exercise; saveState();
     setTranscript('種目 → '+parsed.exercise, true);
     render();

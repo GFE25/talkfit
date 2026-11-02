@@ -95,12 +95,36 @@ with sync_playwright() as p:
     check('単位なしの「80 5」「10」は今まで通り', r[3]['weight'] == 80 and r[3]['reps'] == 5 and r[4]['reps'] == 10, r[3:5])
     check('「1分30秒」は秒数のまま', r[5]['seconds'] == 90, r[5])
 
+    print('語彙ヒントの復唱を記録に使わない（2026-11-02 の実機で判明）')
+    pg.evaluate("state.lastExercise='ベンチプレス'; saveState()")
+    echo = ["筋トレの記録。ベンチプレス、ペックデックフライ、腕立て伏せ、ラットプルダウン、スクワット、インクラインベンチプレス。",
+            "ベンチプレス、ペックデックフライ、腕立て伏せ、ラットプルダウン、スクワット、インクラインベンチプレス。"]
+    for e in echo:
+        pg.evaluate(f"processTranscript({json.dumps(e, ensure_ascii=False)}, {{}})"); pg.wait_for_timeout(120)
+    check('復唱を破棄して、いまの種目を変えない', pg.evaluate("state.lastExercise") == 'ベンチプレス' and pg.evaluate("vs.echo") == 2, pg.evaluate("state.lastExercise"))
+    pg.evaluate("processTranscript('スクワットいきます', {})"); pg.wait_for_timeout(120)
+    check('ふつうの種目宣言は通る', pg.evaluate("state.lastExercise") == 'スクワット')
+    pg.evaluate("state.lastExercise='ベンチプレス'")
+
+    print('短い呼び方の聞き違いを覚える')
+    pg.evaluate("lastAddSig=''; processTranscript('フライ60キロ8回', {})"); pg.wait_for_timeout(150)
+    ex0 = pg.evaluate("state.sets[state.sets.length-1].exercise")
+    pg.evaluate("openSetSheet(state.sets[state.sets.length-1]); setPickedExercise('ペックデックフライ')")
+    pg.evaluate("document.getElementById('mSave').click()"); pg.wait_for_timeout(150)
+    check('「フライ」→ペックデックフライ を覚える', ex0 != 'ペックデックフライ' and pg.evaluate("Object.values(learnStore().alias).some(v=>v.ex==='ペックデックフライ')"), ex0)
+    pg.evaluate("lastAddSig=''; processTranscript('フライ60キロ8回', {})"); pg.wait_for_timeout(150)
+    check('次からは最初から正しく記録', pg.evaluate("state.sets[state.sets.length-1].exercise") == 'ペックデックフライ')
+    pg.evaluate("lastAddSig=''; processTranscript('ベンチプレス40キロ8回', {})"); pg.wait_for_timeout(150)
+    pg.evaluate("openSetSheet(state.sets[state.sets.length-1]); setPickedExercise('インクラインベンチプレス')")
+    pg.evaluate("document.getElementById('mSave').click()"); pg.wait_for_timeout(150)
+    check('正しく言った名前から別の種目に変えただけなら覚えない', not pg.evaluate("Object.keys(learnStore().alias).includes(nameKeyOf('ベンチプレス'))"))
+
     print('学習の効果を数える')
     pg.evaluate("learnStore().alias[nameKeyOf('ペンチ')] = {ex:'ベンチプレス', n:1, at:Date.now()}")
     pg.evaluate("lastAddSig=''; processTranscript('ペンチ80キロ8回', {})"); pg.wait_for_timeout(150)
     last = pg.evaluate("state.sets[state.sets.length-1]")
     check('覚えた言い方で当てた記録に印', last['exercise'] == 'ベンチプレス' and last['raw'].get('learned_alias'), last)
-    check('学習で直した件数', pg.evaluate("vs.learned") == 1)
+    check('学習で直した件数', pg.evaluate("vs.learned") >= 1)
 
     print('終了と再開')
     pg.evaluate("stopCapture()")
