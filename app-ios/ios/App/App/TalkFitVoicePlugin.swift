@@ -762,18 +762,33 @@ public class TalkFitVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - 合図の音
 
     private func makeChime(format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        // サウンドロゴ（docs/SOUND.md）：D5→A5 の完全5度上行。基音＋2・3倍音（整数倍のみ）
         let sr = format.sampleRate
-        let n = AVAudioFrameCount(sr * 0.3)
+        let n = AVAudioFrameCount(sr * 0.35)
         guard let b = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: n),
               let ch = b.floatChannelData?[0] else { return nil }
         b.frameLength = n
-        var phase = 0.0
+        func note(_ f: Double, _ at: Double, _ vel: Double, _ decay: Double, _ t: Double) -> Double {
+            let x = t - at
+            if x < 0 { return 0 }
+            let env = min(1, x / 0.006) * exp(-max(0, x - 0.006) * decay)
+            let w = 2 * Double.pi * f * x
+            return vel * env * (sin(w) + 0.38 * sin(2 * w) * exp(-x * 4) + 0.12 * sin(3 * w) * exp(-x * 7))
+        }
+        let d5 = 587.33
+        var mx = 0.0
+        var tmp = [Double](repeating: 0, count: Int(n))
         for i in 0..<Int(n) {
             let t = Double(i) / sr
-            let f = t < 0.09 ? 1046.5 : 1318.5          // ド → ミ
-            phase += 2 * Double.pi * f / sr
-            let env = min(1, t / 0.01) * exp(-max(0, t - 0.01) * 12)
-            ch[i] = Float(sin(phase) * env * 0.22)
+            tmp[i] = note(d5, 0, 0.8, 11, t) + note(d5 * 1.5, 0.09, 1.0, 12, t)
+            mx = max(mx, abs(tmp[i]))
+        }
+        let fade = Int(sr * 0.04)
+        for i in 0..<Int(n) {
+            var v = tmp[i] / max(mx, 1e-9) * 0.30       // 約 -10dBFS。音楽の邪魔をしない
+            let rest = Int(n) - i
+            if rest < fade { v *= Double(rest) / Double(fade) }
+            ch[i] = Float(v)
         }
         return b
     }
